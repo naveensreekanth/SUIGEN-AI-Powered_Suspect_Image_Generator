@@ -22,6 +22,7 @@ interface SuspectDetailsFormProps {
 const SuspectDetailsForm = ({ onComplete }: SuspectDetailsFormProps) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
+    incident_timestamp: new Date().toISOString().slice(0, 16),
     incident_location_address: "",
     crime_committed: "",
     arms_involved: "",
@@ -68,9 +69,16 @@ const SuspectDetailsForm = ({ onComplete }: SuspectDetailsFormProps) => {
           <CardTitle className="text-2xl">Time & Date</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">
-            Current timestamp: {new Date().toLocaleString()}
-          </p>
+          <div className="space-y-2">
+            <Label htmlFor="timestamp">Incident Timestamp</Label>
+            <Input
+              id="timestamp"
+              type="datetime-local"
+              value={formData.incident_timestamp || new Date().toISOString().slice(0, 16)}
+              onChange={(e) => setFormData({ ...formData, incident_timestamp: e.target.value })}
+              className="bg-secondary/50"
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -140,7 +148,7 @@ const SuspectDetailsForm = ({ onComplete }: SuspectDetailsFormProps) => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="suspect_name">Suspect Name (if known)</Label>
+            <Label htmlFor="suspect_name">Name</Label>
             <Input
               id="suspect_name"
               placeholder="Enter suspect name"
