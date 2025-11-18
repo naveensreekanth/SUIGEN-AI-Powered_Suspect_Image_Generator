@@ -3,14 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-
 const About = () => {
   const handleDownloadManual = () => {
     toast.info("Feature manual will be available soon");
   };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/10">
+  return <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/10">
       <Navbar />
       
       <div className="container mx-auto px-4 pt-24 pb-16">
@@ -18,7 +15,7 @@ const About = () => {
           <div className="text-center space-y-4">
             <h1 className="text-5xl font-bold neon-text">About SUIGEN</h1>
             <p className="text-xl text-muted-foreground">
-              Suspect Image Generator - Advanced Forensic Intelligence Tool
+              Suspect Image Generator - AI Powered image generator         
             </p>
           </div>
 
@@ -96,20 +93,13 @@ const About = () => {
           </Card>
 
           <div className="text-center">
-            <Button
-              size="lg"
-              onClick={handleDownloadManual}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground"
-            >
-              <Download className="mr-2 h-5 w-5" />
+            <Button size="lg" onClick={handleDownloadManual} className="bg-primary hover:bg-primary/90 text-primary-foreground">Download Physical Attributes Sample<Download className="mr-2 h-5 w-5" />
               Download Feature Manual
             </Button>
-            <p className="text-sm text-muted-foreground mt-2">PDF documentation coming soon</p>
+            <p className="text-sm text-muted-foreground mt-2">Note: This is an AI-based tool the results can be inaccurate.                     </p>
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default About;
