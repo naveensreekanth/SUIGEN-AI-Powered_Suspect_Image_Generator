@@ -4,23 +4,26 @@ import { ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
-
 const Home = () => {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({
+      data: {
+        session
+      }
+    }) => {
       setIsAuthenticated(!!session);
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: {
+        subscription
+      }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session);
     });
-
     return () => subscription.unsubscribe();
   }, []);
-
   const handleGetStarted = () => {
     if (isAuthenticated) {
       navigate("/generate");
@@ -28,9 +31,7 @@ const Home = () => {
       navigate("/auth");
     }
   };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/10">
+  return <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/10">
       <Navbar />
       
       <div className="relative overflow-hidden pt-24 pb-16">
@@ -41,29 +42,21 @@ const Home = () => {
           <div className="max-w-4xl mx-auto text-center space-y-8">
             <div className="space-y-4">
               <h1 className="text-6xl md:text-7xl font-bold tracking-tight">
-                <span className="neon-text">Describe. Detect. Generate.</span>
+                <span className="neon-text mx-px px-0 text-center">Describe. Generate. Detect      </span>
               </h1>
-              <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
+              <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto my-[8px] px-0">
                 AI-powered Suspect Image Generation for Investigative Intelligence
               </p>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8">
-              <Button
-                size="lg"
-                onClick={handleGetStarted}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-6 text-lg neon-glow group"
-              >
+              <Button size="lg" onClick={handleGetStarted} className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-6 text-lg neon-glow group">
                 Get Started
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Button>
               
               <Link to="/about">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-primary/50 hover:bg-primary/10 px-8 py-6 text-lg"
-                >
+                <Button size="lg" variant="outline" className="border-primary/50 hover:bg-primary/10 px-8 py-6 text-lg">
                   Learn More
                 </Button>
               </Link>
@@ -98,8 +91,6 @@ const Home = () => {
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default Home;
