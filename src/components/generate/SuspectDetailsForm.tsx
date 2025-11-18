@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import LocationMapPicker from "@/components/LocationMapPicker";
 
 interface SuspectDetailsFormProps {
   onComplete: (caseId: string) => void;
@@ -24,6 +25,8 @@ const SuspectDetailsForm = ({ onComplete }: SuspectDetailsFormProps) => {
   const [formData, setFormData] = useState({
     incident_timestamp: new Date().toISOString().slice(0, 16),
     incident_location_address: "",
+    incident_location_lat: null as number | null,
+    incident_location_lng: null as number | null,
     crime_committed: "",
     arms_involved: "",
     vehicles_involved: "",
@@ -34,6 +37,15 @@ const SuspectDetailsForm = ({ onComplete }: SuspectDetailsFormProps) => {
     surveillance_footage_ref: "",
     custodies: "",
   });
+
+  const handleLocationSelect = (lat: number, lng: number, address: string) => {
+    setFormData({
+      ...formData,
+      incident_location_address: address,
+      incident_location_lat: lat,
+      incident_location_lng: lng,
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,16 +99,13 @@ const SuspectDetailsForm = ({ onComplete }: SuspectDetailsFormProps) => {
           <CardTitle className="text-2xl">Location</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="location">Incident Location Address</Label>
-            <Input
-              id="location"
-              placeholder="Enter address or location details"
-              value={formData.incident_location_address}
-              onChange={(e) => setFormData({ ...formData, incident_location_address: e.target.value })}
-              className="bg-secondary/50"
+          <div className="space-y-4">
+            <Label>Select Incident Location</Label>
+            <LocationMapPicker
+              onLocationSelect={handleLocationSelect}
+              initialLat={formData.incident_location_lat || 20.5937}
+              initialLng={formData.incident_location_lng || 78.9629}
             />
-            <p className="text-sm text-muted-foreground">Map integration placeholder - Enter address manually</p>
           </div>
         </CardContent>
       </Card>
