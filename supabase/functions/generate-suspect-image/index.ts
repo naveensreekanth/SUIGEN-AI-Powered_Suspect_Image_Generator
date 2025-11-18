@@ -49,8 +49,8 @@ serve(async (req) => {
     if (!aiResponse.ok) throw new Error(`AI error: ${aiResponse.status}`);
 
     const aiResult = await aiResponse.json();
-    const imageData = aiResult.choices?.[0]?.message?.content?.find((item: any) => item.type === "image_url")?.image_url?.url;
-    if (!imageData) throw new Error("No image data");
+    const imageData = aiResult.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    if (!imageData) throw new Error("No image data in response");
 
     return new Response(JSON.stringify({ imageData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
