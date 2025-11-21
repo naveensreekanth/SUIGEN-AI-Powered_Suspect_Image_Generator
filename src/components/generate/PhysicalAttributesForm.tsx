@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, Download } from "lucide-react";
 import { toast } from "sonner";
+import jsPDF from "jspdf";
 
 interface PhysicalAttributesFormProps {
   caseId: string;
@@ -27,6 +28,129 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
     ear_shape: "", helix_antihelix: "", skin_tone: "", other_skin_features: "",
     accessories: "",
   });
+
+  const handleDownloadPDF = async () => {
+    try {
+      // Fetch case details
+      const { data: caseData, error: caseError } = await supabase
+        .from("suspect_case_records")
+        .select("*")
+        .eq("id", caseId)
+        .single();
+
+      if (caseError) throw caseError;
+
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      let yPosition = 20;
+
+      // Title
+      pdf.setFontSize(20);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("SUSPECT REPORT", pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 15;
+
+      // Case Details Section
+      pdf.setFontSize(14);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("Case Details", 15, yPosition);
+      yPosition += 10;
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      const caseDetails = [
+        `Incident Time: ${caseData.incident_timestamp ? new Date(caseData.incident_timestamp).toLocaleString() : "N/A"}`,
+        `Location: ${caseData.incident_location_address || "N/A"}`,
+        `Crime: ${caseData.crime_committed || "N/A"}`,
+        `Arms: ${caseData.arms_involved || "N/A"}`,
+        `Vehicles: ${caseData.vehicles_involved || "N/A"}`,
+        `Suspect Name: ${caseData.suspect_name || "N/A"}`,
+        `Suspect Address: ${caseData.suspect_address || "N/A"}`,
+        `Contact: ${caseData.contact_number || "N/A"}`,
+        `Reported By: ${caseData.reported_by || "N/A"}`,
+      ];
+
+      caseDetails.forEach((detail) => {
+        pdf.text(detail, 15, yPosition);
+        yPosition += 7;
+      });
+
+      yPosition += 5;
+
+      // Physical Attributes Section
+      pdf.setFontSize(14);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("Physical Attributes", 15, yPosition);
+      yPosition += 10;
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      const attributes = [
+        `Gender: ${formData.gender || "N/A"}`,
+        `Age: ${formData.age || "N/A"}`,
+        `Ethnicity: ${formData.ethnicity || "N/A"}`,
+        `Height: ${formData.height_feet || "N/A"} ft`,
+        `Body Type: ${formData.body_type || "N/A"}`,
+        `Head Shape: ${formData.head_shape || "N/A"}`,
+        `Chin Shape: ${formData.chin_shape || "N/A"}`,
+        `Hair Length: ${formData.hair_length || "N/A"}`,
+        `Hair Texture: ${formData.hair_texture || "N/A"}`,
+        `Hairline: ${formData.hairline_shape || "N/A"}`,
+        `Hair Style: ${formData.hair_style || "N/A"}`,
+        `Facial Hair: ${formData.facial_hair_type || "N/A"}`,
+        `Beard Color: ${formData.beard_color || "N/A"}`,
+        `Eyebrow Type: ${formData.eyebrow_type || "N/A"}`,
+        `Eye Shape: ${formData.eye_shape || "N/A"}`,
+        `Eye Size: ${formData.eye_size_spacing || "N/A"}`,
+        `Eyelid Type: ${formData.eyelid_type || "N/A"}`,
+        `Eyelashes: ${formData.eyelashes || "N/A"}`,
+        `Eye Color: ${formData.eye_color || "N/A"}`,
+        `Eye Bags/Wrinkles: ${formData.eye_bags_wrinkles || "N/A"}`,
+        `Nose Shape: ${formData.nose_shape || "N/A"}`,
+        `Bridge Height: ${formData.bridge_height || "N/A"}`,
+        `Nostril Width: ${formData.nostril_width || "N/A"}`,
+        `Nose Tip: ${formData.nose_tip_shape || "N/A"}`,
+        `Lip Thickness: ${formData.lip_thickness || "N/A"}`,
+        `Mouth Width: ${formData.mouth_width || "N/A"}`,
+        `Lip Shape: ${formData.lip_shape || "N/A"}`,
+        `Smile Type: ${formData.smile_type || "N/A"}`,
+        `Ear Size: ${formData.ear_size || "N/A"}`,
+        `Ear Lobes: ${formData.ear_lobes || "N/A"}`,
+        `Ear Shape: ${formData.ear_shape || "N/A"}`,
+        `Helix/Antihelix: ${formData.helix_antihelix || "N/A"}`,
+        `Skin Tone: ${formData.skin_tone || "N/A"}`,
+        `Other Skin Features: ${formData.other_skin_features || "N/A"}`,
+        `Accessories: ${formData.accessories || "N/A"}`,
+      ];
+
+      attributes.forEach((attr) => {
+        if (yPosition > 270) {
+          pdf.addPage();
+          yPosition = 20;
+        }
+        pdf.text(attr, 15, yPosition);
+        yPosition += 6;
+      });
+
+      // Add Generated Image
+      if (generatedImage) {
+        pdf.addPage();
+        pdf.setFontSize(14);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Generated Suspect Portrait", pageWidth / 2, 20, { align: "center" });
+        
+        const imgWidth = 150;
+        const imgHeight = 150;
+        pdf.addImage(generatedImage, "PNG", (pageWidth - imgWidth) / 2, 35, imgWidth, imgHeight);
+      }
+
+      pdf.save(`Suspect_Report_${caseId}.pdf`);
+      toast.success("PDF downloaded successfully!");
+    } catch (error: any) {
+      console.error("PDF generation error:", error);
+      toast.error("Failed to generate PDF");
+    }
+  };
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -254,17 +378,38 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Eye Size</Label>
+              <Label>Eye Size & Spacing</Label>
               <Select value={formData.eye_size_spacing} onValueChange={(v) => setFormData({ ...formData, eye_size_spacing: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent><SelectItem value="Large">Large</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Small">Small</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="Large">Large</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Small">Small</SelectItem><SelectItem value="Wide-set">Wide-set</SelectItem><SelectItem value="Close-set">Close-set</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Eyelid Type</Label>
+              <Select value={formData.eyelid_type} onValueChange={(v) => setFormData({ ...formData, eyelid_type: v })}>
+                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent><SelectItem value="Double eyelid">Double eyelid</SelectItem><SelectItem value="Single/monolid">Single/monolid</SelectItem><SelectItem value="Hooded">Hooded</SelectItem><SelectItem value="Crinkled crease">Crinkled crease</SelectItem><SelectItem value="Deep-set crease">Deep-set crease</SelectItem><SelectItem value="Visible crease">Visible crease</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Eyelashes</Label>
+              <Select value={formData.eyelashes} onValueChange={(v) => setFormData({ ...formData, eyelashes: v })}>
+                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent><SelectItem value="Short">Short</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Long">Long</SelectItem><SelectItem value="Sparse">Sparse</SelectItem><SelectItem value="Dense">Dense</SelectItem><SelectItem value="Straight">Straight</SelectItem><SelectItem value="Curled">Curled</SelectItem><SelectItem value="Full line">Full line</SelectItem><SelectItem value="Lower prominent">Lower prominent</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label>Eye Bags & Wrinkles</Label>
+              <Select value={formData.eye_bags_wrinkles} onValueChange={(v) => setFormData({ ...formData, eye_bags_wrinkles: v })}>
+                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent><SelectItem value="None">None</SelectItem><SelectItem value="Slightly puffy">Slightly puffy</SelectItem><SelectItem value="Heavy wrinkles">Heavy wrinkles</SelectItem></SelectContent>
               </Select>
             </div>
           </CardContent>
         </Card>
 
         <Card className="neon-border">
-          <CardHeader><CardTitle>Nose & Mouth</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Nose</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Nose Shape</Label>
@@ -274,12 +419,32 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Bridge</Label>
+              <Label>Bridge Height</Label>
               <Select value={formData.bridge_height} onValueChange={(v) => setFormData({ ...formData, bridge_height: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="High">High</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Low">Low</SelectItem></SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label>Nostril Width</Label>
+              <Select value={formData.nostril_width} onValueChange={(v) => setFormData({ ...formData, nostril_width: v })}>
+                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent><SelectItem value="Narrow">Narrow</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Wide">Wide</SelectItem><SelectItem value="Flared">Flared</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Nose Tip Shape</Label>
+              <Select value={formData.nose_tip_shape} onValueChange={(v) => setFormData({ ...formData, nose_tip_shape: v })}>
+                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent><SelectItem value="Rounded">Rounded</SelectItem><SelectItem value="Aquiline">Aquiline</SelectItem><SelectItem value="Pointed">Pointed</SelectItem><SelectItem value="Bulbous">Bulbous</SelectItem><SelectItem value="Drooping">Drooping</SelectItem><SelectItem value="Upturned">Upturned</SelectItem><SelectItem value="Wide">Wide</SelectItem><SelectItem value="Narrow">Narrow</SelectItem></SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="neon-border">
+          <CardHeader><CardTitle>Mouth</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Lip Thickness</Label>
               <Select value={formData.lip_thickness} onValueChange={(v) => setFormData({ ...formData, lip_thickness: v })}>
@@ -294,6 +459,54 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
                 <SelectContent><SelectItem value="Narrow">Narrow</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Wide">Wide</SelectItem></SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label>Lip Shape</Label>
+              <Select value={formData.lip_shape} onValueChange={(v) => setFormData({ ...formData, lip_shape: v })}>
+                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent className="max-h-60"><SelectItem value="Straight">Straight</SelectItem><SelectItem value="Curved">Curved</SelectItem><SelectItem value="High Cupid's bow">High Cupid's bow</SelectItem><SelectItem value="Low Cupid's bow">Low Cupid's bow</SelectItem><SelectItem value="Angular corners">Angular corners</SelectItem><SelectItem value="Rounded corners">Rounded corners</SelectItem><SelectItem value="Chiseled">Chiseled</SelectItem><SelectItem value="Bowless">Bowless</SelectItem><SelectItem value="Even thickness">Even thickness</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Smile Type</Label>
+              <Select value={formData.smile_type} onValueChange={(v) => setFormData({ ...formData, smile_type: v })}>
+                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent><SelectItem value="Neutral">Neutral</SelectItem><SelectItem value="Frown">Frown</SelectItem><SelectItem value="Upward curve">Upward curve</SelectItem></SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="neon-border">
+          <CardHeader><CardTitle>Ears</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Ear Size</Label>
+              <Select value={formData.ear_size} onValueChange={(v) => setFormData({ ...formData, ear_size: v })}>
+                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent><SelectItem value="Small">Small</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Large">Large</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Ear Lobes</Label>
+              <Select value={formData.ear_lobes} onValueChange={(v) => setFormData({ ...formData, ear_lobes: v })}>
+                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent><SelectItem value="Attached">Attached</SelectItem><SelectItem value="Free">Free</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Ear Shape</Label>
+              <Select value={formData.ear_shape} onValueChange={(v) => setFormData({ ...formData, ear_shape: v })}>
+                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent><SelectItem value="Round">Round</SelectItem><SelectItem value="Oval">Oval</SelectItem><SelectItem value="Heart-shaped">Heart-shaped</SelectItem><SelectItem value="Pointed">Pointed</SelectItem><SelectItem value="Flared">Flared</SelectItem><SelectItem value="Regular">Regular</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Helix/Antihelix Features</Label>
+              <Select value={formData.helix_antihelix} onValueChange={(v) => setFormData({ ...formData, helix_antihelix: v })}>
+                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent><SelectItem value="Defined helix">Defined helix</SelectItem><SelectItem value="Soft helix">Soft helix</SelectItem><SelectItem value="Prominent antihelix">Prominent antihelix</SelectItem><SelectItem value="Flat concha">Flat concha</SelectItem></SelectContent>
+              </Select>
+            </div>
           </CardContent>
         </Card>
 
@@ -305,6 +518,13 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
               <Select value={formData.skin_tone} onValueChange={(v) => setFormData({ ...formData, skin_tone: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Fair">Fair</SelectItem><SelectItem value="Light">Light</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Olive">Olive</SelectItem><SelectItem value="Tan">Tan</SelectItem><SelectItem value="Deep">Deep</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label>Other Skin Features</Label>
+              <Select value={formData.other_skin_features} onValueChange={(v) => setFormData({ ...formData, other_skin_features: v })}>
+                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent><SelectItem value="Scars">Scars</SelectItem><SelectItem value="Blemishes">Blemishes</SelectItem><SelectItem value="Wrinkles">Wrinkles</SelectItem><SelectItem value="Freckles">Freckles</SelectItem><SelectItem value="Birthmarks">Birthmarks</SelectItem><SelectItem value="Moles">Moles</SelectItem></SelectContent>
               </Select>
             </div>
             <div className="col-span-2 space-y-2">
@@ -324,9 +544,15 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
                 <div className="aspect-square bg-secondary/20 rounded-lg overflow-hidden">
                   <img src={generatedImage} alt="Generated portrait" className="w-full h-full object-cover" />
                 </div>
-                <Button onClick={handleGenerate} disabled={generating} className="w-full" variant="outline">
-                  {generating ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Regenerating...</>) : (<><Sparkles className="mr-2 h-4 w-4" />Regenerate</>)}
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button onClick={handleGenerate} disabled={generating} variant="outline" className="w-full">
+                    {generating ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Regenerating...</>) : (<><Sparkles className="mr-2 h-4 w-4" />Regenerate</>)}
+                  </Button>
+                  <Button onClick={handleDownloadPDF} className="w-full">
+                    <Download className="mr-2 h-4 w-4" />
+                    Download PDF
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
