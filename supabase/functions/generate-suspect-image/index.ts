@@ -49,6 +49,14 @@ serve(async (req) => {
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
       console.error(`AI Gateway Error (${aiResponse.status}):`, errorText);
+      
+      if (aiResponse.status === 402) {
+        throw new Error("Insufficient Lovable AI credits. Please add credits in Settings → Workspace → Usage to continue generating images.");
+      }
+      if (aiResponse.status === 429) {
+        throw new Error("Rate limit exceeded. Please wait a moment and try again.");
+      }
+      
       throw new Error(`AI Gateway error: ${aiResponse.status} - ${errorText}`);
     }
 

@@ -218,6 +218,7 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
 
       if (!response.ok) {
         const error = await response.json();
+        console.error("Image generation error:", error);
         throw new Error(error.error || "Failed to generate image");
       }
 
