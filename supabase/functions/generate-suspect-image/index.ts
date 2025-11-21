@@ -46,11 +46,20 @@ serve(async (req) => {
       }),
     });
 
-    if (!aiResponse.ok) throw new Error(`AI error: ${aiResponse.status}`);
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error(`AI Gateway Error (${aiResponse.status}):`, errorText);
+      throw new Error(`AI Gateway error: ${aiResponse.status} - ${errorText}`);
+    }
 
     const aiResult = await aiResponse.json();
+    console.log("AI Response structure:", JSON.stringify(aiResult, null, 2));
+    
     const imageData = aiResult.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!imageData) throw new Error("No image data in response");
+    if (!imageData) {
+      console.error("No image data found. Full response:", JSON.stringify(aiResult, null, 2));
+      throw new Error(`No image data in AI response. Response structure: ${JSON.stringify(aiResult.choices?.[0]?.message || {})}`);
+    }
 
     return new Response(JSON.stringify({ imageData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
