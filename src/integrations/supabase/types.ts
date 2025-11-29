@@ -62,6 +62,53 @@ export type Database = {
           },
         ]
       }
+      image_generation_queue: {
+        Row: {
+          case_id: string
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          next_retry_at: string | null
+          retry_count: number | null
+          started_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          next_retry_at?: string | null
+          retry_count?: number | null
+          started_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          next_retry_at?: string | null
+          retry_count?: number | null
+          started_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "image_generation_queue_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "suspect_case_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -285,7 +332,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_next_processing_slot: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never
