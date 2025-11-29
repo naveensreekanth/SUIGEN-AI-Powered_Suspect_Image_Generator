@@ -31,28 +31,29 @@ serve(async (req) => {
 
     if (attrError) throw attrError;
 
-    const prompt = `Generate a photorealistic forensic portrait: ${attributes.gender || ''} ${attributes.age || ''} years old, ${attributes.ethnicity || ''} ethnicity, ${attributes.skin_tone || ''} skin, ${attributes.body_type || ''} build. Face: ${attributes.head_shape || ''} shape. Hair: ${attributes.hair_length || ''}. Eyes: ${attributes.eye_color || ''}. Professional forensic sketch style, front-facing, neutral background.`;
+    const prompt = `A photorealistic forensic portrait photograph of a ${attributes.gender || 'person'} aged ${attributes.age || '25'} years old with ${attributes.ethnicity || ''} ethnicity, ${attributes.skin_tone || 'medium'} skin tone, and ${attributes.body_type || 'average'} build. The face has a ${attributes.head_shape || 'oval'} head shape. Hair: ${attributes.hair_length || 'medium length'}. Eyes: ${attributes.eye_color || 'brown'} colored. Professional forensic identification photograph style, direct front-facing view, neutral gray background, well-lit studio lighting, high detail, sharp focus.`;
 
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) throw new Error("GEMINI_API_KEY not configured");
 
+    // Use Imagen 3 for image generation
     const aiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-goog-api-key": geminiApiKey
+        },
         body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
+          instances: [{
+            prompt: prompt
           }],
-          generationConfig: {
-            temperature: 1,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 8192,
-            responseMimeType: "image/jpeg"
+          parameters: {
+            sampleCount: 1,
+            aspectRatio: "1:1",
+            safetyFilterLevel: "block_some",
+            personGeneration: "allow_adult"
           }
         }),
       }
@@ -82,17 +83,23 @@ serve(async (req) => {
     }
 
     const aiResult = await aiResponse.json();
-    console.log("Gemini Response structure:", JSON.stringify(aiResult, null, 2));
+    console.log("Imagen Response structure:", JSON.stringify(aiResult, null, 2));
     
-    // Extract image data from Gemini response
-    const inlineData = aiResult.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-    if (!inlineData?.data) {
+    // Extract image data from Imagen response
+    const predictions = aiResult.predictions;
+    if (!predictions || predictions.length === 0) {
       console.error("No image data found. Full response:", JSON.stringify(aiResult, null, 2));
-      throw new Error(`No image data in Gemini response. Response structure: ${JSON.stringify(aiResult.candidates?.[0]?.content || {})}`);
+      throw new Error(`No image data in Imagen response. Response: ${JSON.stringify(aiResult)}`);
+    }
+    
+    // Imagen returns base64 encoded image in bytesBase64Encoded field
+    const imageBytes = predictions[0].bytesBase64Encoded;
+    if (!imageBytes) {
+      throw new Error("No image bytes in response");
     }
     
     // Convert to base64 data URL
-    const imageData = `data:${inlineData.mimeType};base64,${inlineData.data}`;
+    const imageData = `data:image/png;base64,${imageBytes}`;
 
     return new Response(JSON.stringify({ imageData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
