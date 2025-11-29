@@ -33,18 +33,30 @@ serve(async (req) => {
 
     const prompt = `Generate a photorealistic forensic portrait: ${attributes.gender || ''} ${attributes.age || ''} years old, ${attributes.ethnicity || ''} ethnicity, ${attributes.skin_tone || ''} skin, ${attributes.body_type || ''} build. Face: ${attributes.head_shape || ''} shape. Hair: ${attributes.hair_length || ''}. Eyes: ${attributes.eye_color || ''}. Professional forensic sketch style, front-facing, neutral background.`;
 
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableApiKey) throw new Error("LOVABLE_API_KEY not configured");
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!geminiApiKey) throw new Error("GEMINI_API_KEY not configured");
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${lovableApiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image-preview",
-        messages: [{ role: "user", content: prompt }],
-        modalities: ["image", "text"],
-      }),
-    });
+    const aiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 1,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 8192,
+            responseMimeType: "image/jpeg"
+          }
+        }),
+      }
+    );
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
@@ -70,13 +82,17 @@ serve(async (req) => {
     }
 
     const aiResult = await aiResponse.json();
-    console.log("AI Response structure:", JSON.stringify(aiResult, null, 2));
+    console.log("Gemini Response structure:", JSON.stringify(aiResult, null, 2));
     
-    const imageData = aiResult.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!imageData) {
+    // Extract image data from Gemini response
+    const inlineData = aiResult.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+    if (!inlineData?.data) {
       console.error("No image data found. Full response:", JSON.stringify(aiResult, null, 2));
-      throw new Error(`No image data in AI response. Response structure: ${JSON.stringify(aiResult.choices?.[0]?.message || {})}`);
+      throw new Error(`No image data in Gemini response. Response structure: ${JSON.stringify(aiResult.candidates?.[0]?.content || {})}`);
     }
+    
+    // Convert to base64 data URL
+    const imageData = `data:${inlineData.mimeType};base64,${inlineData.data}`;
 
     return new Response(JSON.stringify({ imageData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
