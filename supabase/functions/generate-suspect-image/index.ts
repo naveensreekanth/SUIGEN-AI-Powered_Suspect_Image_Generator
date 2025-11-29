@@ -113,31 +113,33 @@ Accessories: ${attributes.accessories || "Not specified"}
 FINAL VISUAL SUMMARY (most important):
 Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adult"} approximately ${attributes.age || "adult"} years old, of ${attributes.ethnicity || "unspecified"} ethnicity, about ${attributes.height_feet || "average"} feet tall, with ${attributes.body_type || "average"} build, ${attributes.skin_tone || "natural"} skin tone, ${attributes.hair_length || "medium"} ${attributes.hair_style || "simple"} ${attributes.hair_texture || "straight"} hair, and ${attributes.eye_color || "natural-colored"} eyes. Neutral expression, no smile unless specified, plain light background, realistic forensic composite style, no text or decorative elements.`;
 
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiApiKey) throw new Error("OPENAI_API_KEY not configured");
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!geminiApiKey) throw new Error("GEMINI_API_KEY not configured");
 
-    const aiResponse = await fetch("https://api.openai.com/v1/images/generations", {
+    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${geminiApiKey}`, {
       method: "POST",
       headers: { 
-        "Authorization": `Bearer ${openaiApiKey}`,
-        "Content-Type": "application/json" 
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "gpt-image-1",
-        prompt,
-        n: 1,
-        size: "1024x1024",
-        quality: "high",
-        response_format: "b64_json"
+        instances: [
+          {
+            prompt
+          }
+        ],
+        parameters: {
+          sampleCount: 1,
+          aspectRatio: "1:1"
+        }
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error(`OpenAI API Error (${aiResponse.status}):`, errorText);
+      console.error(`Gemini API Error (${aiResponse.status}):`, errorText);
       
-      if (aiResponse.status === 401) {
-        const message = "OpenAI API authentication failed. Please check your API key.";
+      if (aiResponse.status === 401 || aiResponse.status === 403) {
+        const message = "Gemini API authentication failed. Please check your API key.";
         return new Response(
           JSON.stringify({ error: message }),
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -152,16 +154,16 @@ Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adul
         );
       }
       
-      throw new Error(`OpenAI API error: ${aiResponse.status} - ${errorText}`);
+      throw new Error(`Gemini API error: ${aiResponse.status} - ${errorText}`);
     }
 
     const aiResult = await aiResponse.json();
-    console.log("OpenAI API Response:", JSON.stringify(aiResult, null, 2));
+    console.log("Gemini API Response:", JSON.stringify(aiResult, null, 2));
     
-    const imageData = aiResult.data?.[0]?.b64_json;
+    const imageData = aiResult.predictions?.[0]?.bytesBase64Encoded;
     if (!imageData) {
       console.error("No image data found. Full response:", JSON.stringify(aiResult, null, 2));
-      throw new Error(`No image data in OpenAI response. Response structure: ${JSON.stringify(aiResult)}`);
+      throw new Error(`No image data in Gemini response. Response structure: ${JSON.stringify(aiResult)}`);
     }
 
     const imageDataUrl = `data:image/png;base64,${imageData}`;
