@@ -113,36 +113,34 @@ Accessories: ${attributes.accessories || "Not specified"}
 FINAL VISUAL SUMMARY (most important):
 Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adult"} approximately ${attributes.age || "adult"} years old, of ${attributes.ethnicity || "unspecified"} ethnicity, about ${attributes.height_feet || "average"} feet tall, with ${attributes.body_type || "average"} build, ${attributes.skin_tone || "natural"} skin tone, ${attributes.hair_length || "medium"} ${attributes.hair_style || "simple"} ${attributes.hair_texture || "straight"} hair, and ${attributes.eye_color || "natural-colored"} eyes. Neutral expression, no smile unless specified, plain light background, realistic forensic composite style, no text or decorative elements.`;
 
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableApiKey) throw new Error("LOVABLE_API_KEY not configured");
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!openaiApiKey) throw new Error("OPENAI_API_KEY not configured");
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: { 
-        "Authorization": `Bearer ${lovableApiKey}`,
+        "Authorization": `Bearer ${openaiApiKey}`,
         "Content-Type": "application/json" 
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image-preview",
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        modalities: ["image", "text"]
+        model: "gpt-image-1",
+        prompt,
+        n: 1,
+        size: "1024x1024",
+        quality: "high",
+        response_format: "b64_json"
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error(`Lovable AI Gateway Error (${aiResponse.status}):`, errorText);
+      console.error(`OpenAI API Error (${aiResponse.status}):`, errorText);
       
-      if (aiResponse.status === 402) {
-        const message = "Payment required. Please add credits to your Lovable AI workspace.";
+      if (aiResponse.status === 401) {
+        const message = "OpenAI API authentication failed. Please check your API key.";
         return new Response(
           JSON.stringify({ error: message }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
 
@@ -154,19 +152,19 @@ Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adul
         );
       }
       
-      throw new Error(`Lovable AI Gateway error: ${aiResponse.status} - ${errorText}`);
+      throw new Error(`OpenAI API error: ${aiResponse.status} - ${errorText}`);
     }
 
     const aiResult = await aiResponse.json();
-    console.log("Lovable AI Gateway Response:", JSON.stringify(aiResult, null, 2));
+    console.log("OpenAI API Response:", JSON.stringify(aiResult, null, 2));
     
-    const imageUrl = aiResult.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!imageUrl) {
+    const imageData = aiResult.data?.[0]?.b64_json;
+    if (!imageData) {
       console.error("No image data found. Full response:", JSON.stringify(aiResult, null, 2));
-      throw new Error(`No image data in AI response. Response structure: ${JSON.stringify(aiResult)}`);
+      throw new Error(`No image data in OpenAI response. Response structure: ${JSON.stringify(aiResult)}`);
     }
 
-    const imageDataUrl = imageUrl;
+    const imageDataUrl = `data:image/png;base64,${imageData}`;
 
     return new Response(JSON.stringify({ imageData: imageDataUrl }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
