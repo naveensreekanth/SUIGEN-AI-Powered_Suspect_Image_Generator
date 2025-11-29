@@ -116,21 +116,17 @@ Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adul
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) throw new Error("GEMINI_API_KEY not configured");
 
-    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${geminiApiKey}`, {
+    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiApiKey}`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        instances: [
-          {
-            prompt
-          }
-        ],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: "1:1"
-        }
+        contents: [{
+          parts: [
+            { text: prompt }
+          ]
+        }]
       }),
     });
 
@@ -160,7 +156,7 @@ Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adul
     const aiResult = await aiResponse.json();
     console.log("Gemini API Response:", JSON.stringify(aiResult, null, 2));
     
-    const imageData = aiResult.predictions?.[0]?.bytesBase64Encoded;
+    const imageData = aiResult.candidates?.[0]?.content?.parts?.find((part: any) => part.inlineData)?.inlineData?.data;
     if (!imageData) {
       console.error("No image data found. Full response:", JSON.stringify(aiResult, null, 2));
       throw new Error(`No image data in Gemini response. Response structure: ${JSON.stringify(aiResult)}`);
