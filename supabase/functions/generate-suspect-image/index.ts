@@ -36,25 +36,23 @@ serve(async (req) => {
     const bananaApiKey = Deno.env.get("BANANA_API_KEY");
     if (!bananaApiKey) throw new Error("BANANA_API_KEY not configured");
 
-    // Use Banana API for image generation
+    // Use AI/ML API for image generation with flux-schnell model
     const aiResponse = await fetch(
-      "https://api.banana.dev/start/v4",
+      "https://api.aimlapi.com/v1/images/generations",
       {
         method: "POST",
         headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${bananaApiKey}`
+          "Authorization": `Bearer ${bananaApiKey}`,
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          apiKey: bananaApiKey,
-          modelKey: "flux-schnell",
-          modelInputs: {
-            prompt: prompt,
+          model: "flux/schnell",
+          prompt: prompt,
+          image_size: {
             width: 768,
-            height: 768,
-            num_inference_steps: 4,
-            guidance_scale: 0
-          }
+            height: 768
+          },
+          num_inference_steps: 4
         }),
       }
     );
@@ -83,13 +81,13 @@ serve(async (req) => {
     }
 
     const aiResult = await aiResponse.json();
-    console.log("Banana API Response:", JSON.stringify(aiResult, null, 2));
+    console.log("AI/ML API Response:", JSON.stringify(aiResult, null, 2));
     
-    // Extract image data from Banana response
-    const imageData = aiResult.modelOutputs?.[0]?.image_base64;
+    // Extract image data from AI/ML API response
+    const imageData = aiResult.output?.choices?.[0]?.image_base64;
     if (!imageData) {
       console.error("No image data found. Full response:", JSON.stringify(aiResult, null, 2));
-      throw new Error(`No image data in Banana response. Response: ${JSON.stringify(aiResult)}`);
+      throw new Error(`No image data in AI/ML API response. Response: ${JSON.stringify(aiResult)}`);
     }
     
     // Convert to base64 data URL
