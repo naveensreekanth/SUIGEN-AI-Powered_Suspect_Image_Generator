@@ -113,30 +113,33 @@ Accessories: ${attributes.accessories || "Not specified"}
 FINAL VISUAL SUMMARY (most important):
 Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adult"} approximately ${attributes.age || "adult"} years old, of ${attributes.ethnicity || "unspecified"} ethnicity, about ${attributes.height_feet || "average"} feet tall, with ${attributes.body_type || "average"} build, ${attributes.skin_tone || "natural"} skin tone, ${attributes.hair_length || "medium"} ${attributes.hair_style || "simple"} ${attributes.hair_texture || "straight"} hair, and ${attributes.eye_color || "natural-colored"} eyes. Neutral expression, no smile unless specified, plain light background, realistic forensic composite style, no text or decorative elements.`;
 
-    const freepikApiKey = Deno.env.get("FREEPIK_API_KEY");
-    if (!freepikApiKey) throw new Error("FREEPIK_API_KEY not configured");
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableApiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-    const aiResponse = await fetch("https://api.freepik.com/v1/ai/text-to-image", {
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { 
-        "x-freepik-api-key": freepikApiKey,
+        "Authorization": `Bearer ${lovableApiKey}`,
         "Content-Type": "application/json" 
       },
       body: JSON.stringify({
-        prompt,
-        num_images: 1,
-        image: {
-          size: "square_1_1"
-        }
+        model: "google/gemini-2.5-flash-image-preview",
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        modalities: ["image", "text"]
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error(`Freepik API Error (${aiResponse.status}):`, errorText);
+      console.error(`Lovable AI Gateway Error (${aiResponse.status}):`, errorText);
       
-      if (aiResponse.status === 402 || aiResponse.status === 403) {
-        const message = "Freepik API authentication failed. Please check your API key.";
+      if (aiResponse.status === 402) {
+        const message = "Payment required. Please add credits to your Lovable AI workspace.";
         return new Response(
           JSON.stringify({ error: message }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -151,19 +154,19 @@ Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adul
         );
       }
       
-      throw new Error(`Freepik API error: ${aiResponse.status} - ${errorText}`);
+      throw new Error(`Lovable AI Gateway error: ${aiResponse.status} - ${errorText}`);
     }
 
     const aiResult = await aiResponse.json();
-    console.log("Freepik API Response:", JSON.stringify(aiResult, null, 2));
+    console.log("Lovable AI Gateway Response:", JSON.stringify(aiResult, null, 2));
     
-    const imageData = aiResult.data?.[0]?.base64;
-    if (!imageData) {
+    const imageUrl = aiResult.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    if (!imageUrl) {
       console.error("No image data found. Full response:", JSON.stringify(aiResult, null, 2));
-      throw new Error(`No image data in Freepik response. Response structure: ${JSON.stringify(aiResult)}`);
+      throw new Error(`No image data in AI response. Response structure: ${JSON.stringify(aiResult)}`);
     }
 
-    const imageDataUrl = `data:image/png;base64,${imageData}`;
+    const imageDataUrl = imageUrl;
 
     return new Response(JSON.stringify({ imageData: imageDataUrl }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
