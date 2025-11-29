@@ -31,7 +31,78 @@ serve(async (req) => {
 
     if (attrError) throw attrError;
 
-    const prompt = `Generate a photorealistic forensic portrait: ${attributes.gender || ''} ${attributes.age || ''} years old, ${attributes.ethnicity || ''} ethnicity, ${attributes.skin_tone || ''} skin, ${attributes.body_type || ''} build. Face: ${attributes.head_shape || ''} shape. Hair: ${attributes.hair_length || ''}. Eyes: ${attributes.eye_color || ''}. Professional forensic sketch style, front-facing, neutral background.`;
+    const prompt = `You are a digital forensic sketch generator. Based on structured physical descriptions, you must produce a realistic police-style digital sketch of a suspect.
+
+Output Style Guidelines:
+- Crime investigation style sketch / digital composite rendering
+- Based on real-world facial proportions
+- Avoid stylization: No anime, cartoon, abstract, or fantasy elements
+- Neutral facial expression unless otherwise specified
+- High clarity, well-defined facial structure, accurate skin tone and texture
+- Clean plain background (white, grey, or police-ID backdrop)
+
+Instructions:
+- Interpret the description as precisely as possible.
+- If details are missing, choose the most neutral/default appearance.
+- DO NOT invent unrealistic features or distort identity-like elements.
+- Produce a single suspect image per request.
+
+Goal: Deliver a professional forensic sketch that helps law enforcement visually identify a suspect based solely on eyewitness-style textual descriptions.
+
+SUSPECT DESCRIPTION:
+Gender: ${attributes.gender || 'Not specified'}
+Age: ${attributes.age || 'Not specified'} years old
+Ethnicity: ${attributes.ethnicity || 'Not specified'}
+Skin Tone: ${attributes.skin_tone || 'Not specified'}
+Body Type: ${attributes.body_type || 'Not specified'}
+Height: ${attributes.height_feet || 'Not specified'} feet
+
+FACIAL FEATURES:
+Head Shape: ${attributes.head_shape || 'Not specified'}
+Hair Length: ${attributes.hair_length || 'Not specified'}
+Hair Style: ${attributes.hair_style || 'Not specified'}
+Hair Texture: ${attributes.hair_texture || 'Not specified'}
+Hairline Shape: ${attributes.hairline_shape || 'Not specified'}
+
+EYES:
+Eye Color: ${attributes.eye_color || 'Not specified'}
+Eye Shape: ${attributes.eye_shape || 'Not specified'}
+Eye Size/Spacing: ${attributes.eye_size_spacing || 'Not specified'}
+Eyebrow Type: ${attributes.eyebrow_type || 'Not specified'}
+Eyelid Type: ${attributes.eyelid_type || 'Not specified'}
+Eyelashes: ${attributes.eyelashes || 'Not specified'}
+Eye Bags/Wrinkles: ${attributes.eye_bags_wrinkles || 'Not specified'}
+
+NOSE:
+Nose Shape: ${attributes.nose_shape || 'Not specified'}
+Bridge Height: ${attributes.bridge_height || 'Not specified'}
+Nose Tip Shape: ${attributes.nose_tip_shape || 'Not specified'}
+Nostril Width: ${attributes.nostril_width || 'Not specified'}
+
+MOUTH:
+Lip Shape: ${attributes.lip_shape || 'Not specified'}
+Lip Thickness: ${attributes.lip_thickness || 'Not specified'}
+Mouth Width: ${attributes.mouth_width || 'Not specified'}
+Smile Type: ${attributes.smile_type || 'Not specified'}
+
+FACIAL STRUCTURE:
+Chin Shape: ${attributes.chin_shape || 'Not specified'}
+
+FACIAL HAIR:
+Facial Hair Type: ${attributes.facial_hair_type || 'Not specified'}
+Beard Color: ${attributes.beard_color || 'Not specified'}
+
+EARS:
+Ear Shape: ${attributes.ear_shape || 'Not specified'}
+Ear Size: ${attributes.ear_size || 'Not specified'}
+Ear Lobes: ${attributes.ear_lobes || 'Not specified'}
+Helix/Antihelix: ${attributes.helix_antihelix || 'Not specified'}
+
+SKIN:
+Other Skin Features: ${attributes.other_skin_features || 'Not specified'}
+
+ACCESSORIES:
+Accessories: ${attributes.accessories || 'Not specified'}`;
 
     const freepikApiKey = Deno.env.get("FREEPIK_API_KEY");
     if (!freepikApiKey) throw new Error("FREEPIK_API_KEY not configured");
