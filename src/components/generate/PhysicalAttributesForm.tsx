@@ -224,6 +224,12 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
         console.error("Image generation error:", error);
         const errorMsg = error.error || "Failed to generate image";
         setErrorMessage(errorMsg);
+        
+        // Handle rate limit with retry information
+        if (response.status === 429 && error.retryAfter) {
+          throw new Error(`${errorMsg} (wait ${error.retryAfter}s)`);
+        }
+        
         throw new Error(errorMsg);
       }
 
@@ -237,7 +243,7 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
           attributes_id: attributesRecord.id,
           image_data: result.imageData,
           generation_status: "completed",
-          generation_metadata: { model: "gemini-2.5-flash-image-preview" },
+          generation_metadata: { model: "gemini-2.5-flash-image" },
         });
 
         toast.success("Suspect image generated successfully!");
@@ -246,7 +252,15 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
       console.error("Generation error:", error);
       const errorMsg = error.message || "Failed to generate image";
       setErrorMessage(errorMsg);
-      toast.error(errorMsg);
+      
+      // Show more user-friendly error messages with longer duration for rate limits
+      if (errorMsg.includes("wait")) {
+        toast.error(errorMsg, { duration: 5000 });
+      } else if (errorMsg.includes("Rate limit") || errorMsg.includes("already in progress")) {
+        toast.error(errorMsg, { duration: 5000 });
+      } else {
+        toast.error(errorMsg);
+      }
     } finally {
       setGenerating(false);
     }

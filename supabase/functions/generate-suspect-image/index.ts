@@ -21,6 +21,65 @@ serve(async (req) => {
       { global: { headers: { Authorization: req.headers.get("Authorization")! } } }
     );
 
+    // Get user ID from auth
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    // Check if there's already a pending/processing request for this case
+    const { data: existingQueue } = await supabaseClient
+      .from("image_generation_queue")
+      .select("*")
+      .eq("case_id", case_id)
+      .in("status", ["pending", "processing"])
+      .maybeSingle();
+
+    if (existingQueue) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Image generation already in progress for this case. Please wait.",
+          queueId: existingQueue.id 
+        }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get next available processing slot
+    const { data: nextSlot } = await supabaseClient.rpc("get_next_processing_slot");
+    const now = new Date();
+    const slotTime = new Date(nextSlot);
+    
+    if (slotTime > now) {
+      const waitSeconds = Math.ceil((slotTime.getTime() - now.getTime()) / 1000);
+      return new Response(
+        JSON.stringify({ 
+          error: `Rate limit protection: Please wait ${waitSeconds} seconds before trying again.`,
+          retryAfter: waitSeconds 
+        }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            "Content-Type": "application/json",
+            "Retry-After": waitSeconds.toString()
+          } 
+        }
+      );
+    }
+
+    // Create queue entry
+    const { data: queueEntry, error: queueError } = await supabaseClient
+      .from("image_generation_queue")
+      .insert({
+        case_id,
+        user_id: user.id,
+        status: "processing",
+        started_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (queueError) throw queueError;
+
     const { data: attributes, error: attrError } = await supabaseClient
       .from("suspect_physical_attributes")
       .select("*")
@@ -164,8 +223,43 @@ Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adul
 
     const imageDataUrl = `data:image/png;base64,${imageData}`;
 
+    // Update queue entry as completed
+    await supabaseClient
+      .from("image_generation_queue")
+      .update({
+        status: "completed",
+        completed_at: new Date().toISOString()
+      })
+      .eq("id", queueEntry.id);
+
     return new Response(JSON.stringify({ imageData: imageDataUrl }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
+    console.error("Error in generate-suspect-image:", error);
+    
+    // Try to update queue status to failed if we have a queue entry
+    try {
+      const { case_id } = await req.json().catch(() => ({}));
+      if (case_id) {
+        const supabaseClient = createClient(
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+          { global: { headers: { Authorization: req.headers.get("Authorization")! } } }
+        );
+        
+        await supabaseClient
+          .from("image_generation_queue")
+          .update({
+            status: "failed",
+            completed_at: new Date().toISOString(),
+            error_message: error?.message || "Unknown error"
+          })
+          .eq("case_id", case_id)
+          .eq("status", "processing");
+      }
+    } catch (updateError) {
+      console.error("Failed to update queue status:", updateError);
+    }
+    
     return new Response(JSON.stringify({ error: error?.message || "Error" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
   }
 });
