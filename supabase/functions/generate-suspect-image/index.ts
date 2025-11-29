@@ -31,31 +31,20 @@ serve(async (req) => {
 
     if (attrError) throw attrError;
 
-    const prompt = `A photorealistic forensic portrait photograph of a ${attributes.gender || 'person'} aged ${attributes.age || '25'} years old with ${attributes.ethnicity || ''} ethnicity, ${attributes.skin_tone || 'medium'} skin tone, and ${attributes.body_type || 'average'} build. The face has a ${attributes.head_shape || 'oval'} head shape. Hair: ${attributes.hair_length || 'medium length'}. Eyes: ${attributes.eye_color || 'brown'} colored. Professional forensic identification photograph style, direct front-facing view, neutral gray background, well-lit studio lighting, high detail, sharp focus.`;
+    const prompt = `Generate a photorealistic forensic portrait: ${attributes.gender || ''} ${attributes.age || ''} years old, ${attributes.ethnicity || ''} ethnicity, ${attributes.skin_tone || ''} skin, ${attributes.body_type || ''} build. Face: ${attributes.head_shape || ''} shape. Hair: ${attributes.hair_length || ''}. Eyes: ${attributes.eye_color || ''}. Professional forensic sketch style, front-facing, neutral background.`;
 
-    const bananaApiKey = Deno.env.get("BANANA_API_KEY");
-    if (!bananaApiKey) throw new Error("BANANA_API_KEY not configured");
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableApiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Use AI/ML API for image generation with flux-schnell model
-    const aiResponse = await fetch(
-      "https://api.aimlapi.com/v1/images/generations",
-      {
-        method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${bananaApiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "flux/schnell",
-          prompt: prompt,
-          image_size: {
-            width: 768,
-            height: 768
-          },
-          num_inference_steps: 4
-        }),
-      }
-    );
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${lovableApiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image-preview",
+        messages: [{ role: "user", content: prompt }],
+        modalities: ["image", "text"],
+      }),
+    });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
@@ -81,19 +70,15 @@ serve(async (req) => {
     }
 
     const aiResult = await aiResponse.json();
-    console.log("AI/ML API Response:", JSON.stringify(aiResult, null, 2));
+    console.log("AI Response structure:", JSON.stringify(aiResult, null, 2));
     
-    // Extract image data from AI/ML API response
-    const imageData = aiResult.output?.choices?.[0]?.image_base64;
+    const imageData = aiResult.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     if (!imageData) {
       console.error("No image data found. Full response:", JSON.stringify(aiResult, null, 2));
-      throw new Error(`No image data in AI/ML API response. Response: ${JSON.stringify(aiResult)}`);
+      throw new Error(`No image data in AI response. Response structure: ${JSON.stringify(aiResult.choices?.[0]?.message || {})}`);
     }
-    
-    // Convert to base64 data URL
-    const imageDataUrl = `data:image/png;base64,${imageData}`;
 
-    return new Response(JSON.stringify({ imageData: imageDataUrl }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ imageData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error?.message || "Error" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
   }
