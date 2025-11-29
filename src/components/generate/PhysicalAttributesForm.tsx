@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, Download } from "lucide-react";
+import { Loader2, Sparkles, Download, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface PhysicalAttributesFormProps {
   caseId: string;
@@ -16,6 +17,7 @@ interface PhysicalAttributesFormProps {
 const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
   const [generating, setGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     gender: "", age: "", ethnicity: "", height_feet: "", body_type: "",
@@ -154,6 +156,7 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setErrorMessage(null);
     try {
       const attributesData = {
         case_id: caseId,
@@ -219,7 +222,9 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
       if (!response.ok) {
         const error = await response.json();
         console.error("Image generation error:", error);
-        throw new Error(error.error || "Failed to generate image");
+        const errorMsg = error.error || "Failed to generate image";
+        setErrorMessage(errorMsg);
+        throw new Error(errorMsg);
       }
 
       const result = await response.json();
@@ -239,7 +244,9 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
       }
     } catch (error: any) {
       console.error("Generation error:", error);
-      toast.error(error.message || "Failed to generate image");
+      const errorMsg = error.message || "Failed to generate image";
+      setErrorMessage(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setGenerating(false);
     }
@@ -537,6 +544,21 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
       </div>
 
       <div className="space-y-4">
+        {errorMessage && (
+          <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-2">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Generation Failed</AlertTitle>
+            <AlertDescription className="text-sm">
+              {errorMessage}
+              {errorMessage.includes("credits") && (
+                <div className="mt-2 text-xs">
+                  Go to <strong>Settings → Workspace → Usage</strong> to add more credits.
+                </div>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <Card className="neon-border sticky top-4">
           <CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5" />Generated Portrait</CardTitle></CardHeader>
           <CardContent className="space-y-4">

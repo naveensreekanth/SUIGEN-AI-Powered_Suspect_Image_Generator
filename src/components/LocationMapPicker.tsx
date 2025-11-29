@@ -63,8 +63,18 @@ const LocationMapPicker = ({ onLocationSelect, initialLat = 20.5937, initialLng 
   const reverseGeocode = async (lat: number, lng: number) => {
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+        {
+          headers: {
+            'User-Agent': 'SuspectIDApp/1.0',
+          },
+        }
       );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
       const formattedAddress = data.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
       setAddress(formattedAddress);
