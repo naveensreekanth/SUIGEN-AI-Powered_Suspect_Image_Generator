@@ -51,10 +51,19 @@ serve(async (req) => {
       console.error(`AI Gateway Error (${aiResponse.status}):`, errorText);
       
       if (aiResponse.status === 402) {
-        throw new Error("Insufficient Lovable AI credits. Please add credits in Settings → Workspace → Usage to continue generating images.");
+        const message = "Insufficient Lovable AI credits. Please add credits in Settings → Workspace → Usage to continue generating images.";
+        return new Response(
+          JSON.stringify({ error: message }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
+
       if (aiResponse.status === 429) {
-        throw new Error("Rate limit exceeded. Please wait a moment and try again.");
+        const message = "Rate limit exceeded. Please wait a moment and try again.";
+        return new Response(
+          JSON.stringify({ error: message }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
       
       throw new Error(`AI Gateway error: ${aiResponse.status} - ${errorText}`);
