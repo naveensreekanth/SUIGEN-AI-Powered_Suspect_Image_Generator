@@ -33,27 +33,27 @@ serve(async (req) => {
 
     const prompt = `A photorealistic forensic portrait photograph of a ${attributes.gender || 'person'} aged ${attributes.age || '25'} years old with ${attributes.ethnicity || ''} ethnicity, ${attributes.skin_tone || 'medium'} skin tone, and ${attributes.body_type || 'average'} build. The face has a ${attributes.head_shape || 'oval'} head shape. Hair: ${attributes.hair_length || 'medium length'}. Eyes: ${attributes.eye_color || 'brown'} colored. Professional forensic identification photograph style, direct front-facing view, neutral gray background, well-lit studio lighting, high detail, sharp focus.`;
 
-    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
-    if (!geminiApiKey) throw new Error("GEMINI_API_KEY not configured");
+    const bananaApiKey = Deno.env.get("BANANA_API_KEY");
+    if (!bananaApiKey) throw new Error("BANANA_API_KEY not configured");
 
-    // Use Imagen 3 for image generation
+    // Use Banana API for image generation
     const aiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict`,
+      "https://api.banana.dev/start/v4",
       {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "x-goog-api-key": geminiApiKey
+          "Authorization": `Bearer ${bananaApiKey}`
         },
         body: JSON.stringify({
-          instances: [{
-            prompt: prompt
-          }],
-          parameters: {
-            sampleCount: 1,
-            aspectRatio: "1:1",
-            safetyFilterLevel: "block_some",
-            personGeneration: "allow_adult"
+          apiKey: bananaApiKey,
+          modelKey: "flux-schnell",
+          modelInputs: {
+            prompt: prompt,
+            width: 768,
+            height: 768,
+            num_inference_steps: 4,
+            guidance_scale: 0
           }
         }),
       }
@@ -83,25 +83,19 @@ serve(async (req) => {
     }
 
     const aiResult = await aiResponse.json();
-    console.log("Imagen Response structure:", JSON.stringify(aiResult, null, 2));
+    console.log("Banana API Response:", JSON.stringify(aiResult, null, 2));
     
-    // Extract image data from Imagen response
-    const predictions = aiResult.predictions;
-    if (!predictions || predictions.length === 0) {
+    // Extract image data from Banana response
+    const imageData = aiResult.modelOutputs?.[0]?.image_base64;
+    if (!imageData) {
       console.error("No image data found. Full response:", JSON.stringify(aiResult, null, 2));
-      throw new Error(`No image data in Imagen response. Response: ${JSON.stringify(aiResult)}`);
-    }
-    
-    // Imagen returns base64 encoded image in bytesBase64Encoded field
-    const imageBytes = predictions[0].bytesBase64Encoded;
-    if (!imageBytes) {
-      throw new Error("No image bytes in response");
+      throw new Error(`No image data in Banana response. Response: ${JSON.stringify(aiResult)}`);
     }
     
     // Convert to base64 data URL
-    const imageData = `data:image/png;base64,${imageBytes}`;
+    const imageDataUrl = `data:image/png;base64,${imageData}`;
 
-    return new Response(JSON.stringify({ imageData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ imageData: imageDataUrl }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error?.message || "Error" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
   }
