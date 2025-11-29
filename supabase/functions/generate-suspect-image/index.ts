@@ -31,78 +31,87 @@ serve(async (req) => {
 
     if (attrError) throw attrError;
 
-    const prompt = `You are a digital forensic sketch generator. Based on structured physical descriptions, you must produce a realistic police-style digital sketch of a suspect.
+    const prompt = `Realistic digital forensic composite portrait of a single human suspect.
 
-Output Style Guidelines:
+ROLE:
+You are a digital forensic sketch generator. Based on structured physical descriptions, you must produce a realistic police-style digital sketch of a suspect.
+
+OUTPUT STYLE GUIDELINES:
 - Crime investigation style sketch / digital composite rendering
-- Based on real-world facial proportions
-- Avoid stylization: No anime, cartoon, abstract, or fantasy elements
+- Realistic human face based on real-world facial proportions
 - Neutral facial expression unless otherwise specified
 - High clarity, well-defined facial structure, accurate skin tone and texture
-- Clean plain background (white, grey, or police-ID backdrop)
+- Bust portrait, chest and head only, subject centered in frame
+- Camera: front-facing, straight-on view, eye level
+- Lighting: soft, even studio lighting, no dramatic shadows
+- Background: plain, clean (white, light grey, or police-ID backdrop)
+- No text, no logos, no watermarks, no frames, no labels
+- No extra limbs, no multiple faces, no cropped head, no artistic borders
+- Avoid stylization: NO anime, cartoon, abstract, or fantasy elements
 
-Instructions:
+INSTRUCTIONS:
 - Interpret the description as precisely as possible.
 - If details are missing, choose the most neutral/default appearance.
 - DO NOT invent unrealistic features or distort identity-like elements.
-- Produce a single suspect image per request.
+- Produce EXACTLY ONE suspect image per request.
 
-Goal: Deliver a professional forensic sketch that helps law enforcement visually identify a suspect based solely on eyewitness-style textual descriptions.
-
-SUSPECT DESCRIPTION:
-Gender: ${attributes.gender || 'Not specified'}
-Age: ${attributes.age || 'Not specified'} years old
-Ethnicity: ${attributes.ethnicity || 'Not specified'}
-Skin Tone: ${attributes.skin_tone || 'Not specified'}
-Body Type: ${attributes.body_type || 'Not specified'}
-Height: ${attributes.height_feet || 'Not specified'} feet
+SUSPECT DESCRIPTION (use every field that is specified):
+Gender: ${attributes.gender || "Not specified"}
+Age: ${attributes.age || "Not specified"} years old
+Ethnicity: ${attributes.ethnicity || "Not specified"}
+Skin Tone: ${attributes.skin_tone || "Not specified"}
+Body Type: ${attributes.body_type || "Not specified"}
+Height: ${attributes.height_feet || "Not specified"} feet
 
 FACIAL FEATURES:
-Head Shape: ${attributes.head_shape || 'Not specified'}
-Hair Length: ${attributes.hair_length || 'Not specified'}
-Hair Style: ${attributes.hair_style || 'Not specified'}
-Hair Texture: ${attributes.hair_texture || 'Not specified'}
-Hairline Shape: ${attributes.hairline_shape || 'Not specified'}
+Head Shape: ${attributes.head_shape || "Not specified"}
+Hair Length: ${attributes.hair_length || "Not specified"}
+Hair Style: ${attributes.hair_style || "Not specified"}
+Hair Texture: ${attributes.hair_texture || "Not specified"}
+Hairline Shape: ${attributes.hairline_shape || "Not specified"}
 
 EYES:
-Eye Color: ${attributes.eye_color || 'Not specified'}
-Eye Shape: ${attributes.eye_shape || 'Not specified'}
-Eye Size/Spacing: ${attributes.eye_size_spacing || 'Not specified'}
-Eyebrow Type: ${attributes.eyebrow_type || 'Not specified'}
-Eyelid Type: ${attributes.eyelid_type || 'Not specified'}
-Eyelashes: ${attributes.eyelashes || 'Not specified'}
-Eye Bags/Wrinkles: ${attributes.eye_bags_wrinkles || 'Not specified'}
+Eye Color: ${attributes.eye_color || "Not specified"}
+Eye Shape: ${attributes.eye_shape || "Not specified"}
+Eye Size/Spacing: ${attributes.eye_size_spacing || "Not specified"}
+Eyebrow Type: ${attributes.eyebrow_type || "Not specified"}
+Eyelid Type: ${attributes.eyelid_type || "Not specified"}
+Eyelashes: ${attributes.eyelashes || "Not specified"}
+Eye Bags/Wrinkles: ${attributes.eye_bags_wrinkles || "Not specified"}
 
 NOSE:
-Nose Shape: ${attributes.nose_shape || 'Not specified'}
-Bridge Height: ${attributes.bridge_height || 'Not specified'}
-Nose Tip Shape: ${attributes.nose_tip_shape || 'Not specified'}
-Nostril Width: ${attributes.nostril_width || 'Not specified'}
+Nose Shape: ${attributes.nose_shape || "Not specified"}
+Bridge Height: ${attributes.bridge_height || "Not specified"}
+Nose Tip Shape: ${attributes.nose_tip_shape || "Not specified"}
+Nostril Width: ${attributes.nostril_width || "Not specified"}
 
 MOUTH:
-Lip Shape: ${attributes.lip_shape || 'Not specified'}
-Lip Thickness: ${attributes.lip_thickness || 'Not specified'}
-Mouth Width: ${attributes.mouth_width || 'Not specified'}
-Smile Type: ${attributes.smile_type || 'Not specified'}
+Lip Shape: ${attributes.lip_shape || "Not specified"}
+Lip Thickness: ${attributes.lip_thickness || "Not specified"}
+Mouth Width: ${attributes.mouth_width || "Not specified"}
+Smile Type: ${attributes.smile_type || "Not specified"}
 
 FACIAL STRUCTURE:
-Chin Shape: ${attributes.chin_shape || 'Not specified'}
+Chin Shape: ${attributes.chin_shape || "Not specified"}
 
 FACIAL HAIR:
-Facial Hair Type: ${attributes.facial_hair_type || 'Not specified'}
-Beard Color: ${attributes.beard_color || 'Not specified'}
+Facial Hair Type: ${attributes.facial_hair_type || "Not specified"}
+Beard Color: ${attributes.beard_color || "Not specified"}
 
 EARS:
-Ear Shape: ${attributes.ear_shape || 'Not specified'}
-Ear Size: ${attributes.ear_size || 'Not specified'}
-Ear Lobes: ${attributes.ear_lobes || 'Not specified'}
-Helix/Antihelix: ${attributes.helix_antihelix || 'Not specified'}
+Ear Shape: ${attributes.ear_shape || "Not specified"}
+Ear Size: ${attributes.ear_size || "Not specified"}
+Ear Lobes: ${attributes.ear_lobes || "Not specified"}
+Helix/Antihelix: ${attributes.helix_antihelix || "Not specified"}
 
 SKIN:
-Other Skin Features: ${attributes.other_skin_features || 'Not specified'}
+Other Skin Features: ${attributes.other_skin_features || "Not specified"}
 
 ACCESSORIES:
-Accessories: ${attributes.accessories || 'Not specified'}`;
+Accessories: ${attributes.accessories || "Not specified"}
+
+FINAL VISUAL SUMMARY (most important):
+Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adult"} approximately ${attributes.age || "adult"} years old, of ${attributes.ethnicity || "unspecified"} ethnicity, about ${attributes.height_feet || "average"} feet tall, with ${attributes.body_type || "average"} build, ${attributes.skin_tone || "natural"} skin tone, ${attributes.hair_length || "medium"} ${attributes.hair_style || "simple"} ${attributes.hair_texture || "straight"} hair, and ${attributes.eye_color || "natural-colored"} eyes. Neutral expression, no smile unless specified, plain light background, realistic forensic composite style, no text or decorative elements.`;
 
     const freepikApiKey = Deno.env.get("FREEPIK_API_KEY");
     if (!freepikApiKey) throw new Error("FREEPIK_API_KEY not configured");
@@ -114,7 +123,7 @@ Accessories: ${attributes.accessories || 'Not specified'}`;
         "Content-Type": "application/json" 
       },
       body: JSON.stringify({
-        prompt: prompt,
+        prompt,
         num_images: 1,
         image: {
           size: "square_1_1"
