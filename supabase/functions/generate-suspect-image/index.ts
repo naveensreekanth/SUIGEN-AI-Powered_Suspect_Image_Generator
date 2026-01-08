@@ -12,9 +12,8 @@ serve(async (req) => {
   }
 
   try {
-    const { case_id } = await req.json();
+    const { case_id, feature_constraints } = await req.json();
     if (!case_id) throw new Error("case_id is required");
-
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
@@ -90,10 +89,25 @@ serve(async (req) => {
 
     if (attrError) throw attrError;
 
+    // Build constraint instructions based on lock/confidence levels
+    const getConstraintText = (key: string, value: string) => {
+      if (!feature_constraints || !feature_constraints[key]) return value;
+      const { locked, confidence } = feature_constraints[key];
+      if (locked || confidence === 3) return `${value} [FIXED - DO NOT CHANGE]`;
+      if (confidence === 2) return `${value} [preserve closely]`;
+      return `${value} [can vary slightly]`;
+    };
+
     const basePrompt = `Realistic digital forensic composite portrait of a single human suspect.
 
 ROLE:
 You are a digital forensic sketch generator. Based on structured physical descriptions, you must produce a realistic police-style digital sketch of a suspect.
+
+FEATURE CONSTRAINT RULES:
+- Features marked [FIXED - DO NOT CHANGE] MUST be rendered EXACTLY as specified with NO variation
+- Features marked [preserve closely] should be mostly accurate with minimal variation
+- Features marked [can vary slightly] may have natural variation
+- Locked/fixed features take HIGHEST PRIORITY during generation
 
 OUTPUT STYLE GUIDELINES:
 - Crime investigation style sketch / digital composite rendering
@@ -108,69 +122,63 @@ OUTPUT STYLE GUIDELINES:
 - No extra limbs, no multiple faces, no cropped head, no artistic borders
 - Avoid stylization: NO anime, cartoon, abstract, or fantasy elements
 
-INSTRUCTIONS:
-- Interpret the description as precisely as possible.
-- If details are missing, choose the most neutral/default appearance.
-- DO NOT invent unrealistic features or distort identity-like elements.
-- Produce EXACTLY ONE suspect image per request.
-
-SUSPECT DESCRIPTION (use every field that is specified):
+SUSPECT DESCRIPTION:
 Gender: ${attributes.gender || "Not specified"}
 Age: ${attributes.age || "Not specified"} years old
 Ethnicity: ${attributes.ethnicity || "Not specified"}
-Skin Tone: ${attributes.skin_tone || "Not specified"}
+Skin Tone: ${getConstraintText("skin_tone", attributes.skin_tone || "Not specified")}
 Body Type: ${attributes.body_type || "Not specified"}
 Height: ${attributes.height_feet || "Not specified"} feet
 
 FACIAL FEATURES:
-Head Shape: ${attributes.head_shape || "Not specified"}
-Hair Length: ${attributes.hair_length || "Not specified"}
-Hair Style: ${attributes.hair_style || "Not specified"}
-Hair Texture: ${attributes.hair_texture || "Not specified"}
-Hairline Shape: ${attributes.hairline_shape || "Not specified"}
+Head Shape: ${getConstraintText("head_shape", attributes.head_shape || "Not specified")}
+Hair Length: ${getConstraintText("hair_length", attributes.hair_length || "Not specified")}
+Hair Style: ${getConstraintText("hair_style", attributes.hair_style || "Not specified")}
+Hair Texture: ${getConstraintText("hair_texture", attributes.hair_texture || "Not specified")}
+Hairline Shape: ${getConstraintText("hairline_shape", attributes.hairline_shape || "Not specified")}
 
 EYES:
-Eye Color: ${attributes.eye_color || "Not specified"}
-Eye Shape: ${attributes.eye_shape || "Not specified"}
-Eye Size/Spacing: ${attributes.eye_size_spacing || "Not specified"}
-Eyebrow Type: ${attributes.eyebrow_type || "Not specified"}
-Eyelid Type: ${attributes.eyelid_type || "Not specified"}
-Eyelashes: ${attributes.eyelashes || "Not specified"}
-Eye Bags/Wrinkles: ${attributes.eye_bags_wrinkles || "Not specified"}
+Eye Color: ${getConstraintText("eye_color", attributes.eye_color || "Not specified")}
+Eye Shape: ${getConstraintText("eye_shape", attributes.eye_shape || "Not specified")}
+Eye Size/Spacing: ${getConstraintText("eye_size_spacing", attributes.eye_size_spacing || "Not specified")}
+Eyebrow Type: ${getConstraintText("eyebrow_type", attributes.eyebrow_type || "Not specified")}
+Eyelid Type: ${getConstraintText("eyelid_type", attributes.eyelid_type || "Not specified")}
+Eyelashes: ${getConstraintText("eyelashes", attributes.eyelashes || "Not specified")}
+Eye Bags/Wrinkles: ${getConstraintText("eye_bags_wrinkles", attributes.eye_bags_wrinkles || "Not specified")}
 
 NOSE:
-Nose Shape: ${attributes.nose_shape || "Not specified"}
-Bridge Height: ${attributes.bridge_height || "Not specified"}
-Nose Tip Shape: ${attributes.nose_tip_shape || "Not specified"}
-Nostril Width: ${attributes.nostril_width || "Not specified"}
+Nose Shape: ${getConstraintText("nose_shape", attributes.nose_shape || "Not specified")}
+Bridge Height: ${getConstraintText("bridge_height", attributes.bridge_height || "Not specified")}
+Nose Tip Shape: ${getConstraintText("nose_tip_shape", attributes.nose_tip_shape || "Not specified")}
+Nostril Width: ${getConstraintText("nostril_width", attributes.nostril_width || "Not specified")}
 
 MOUTH:
-Lip Shape: ${attributes.lip_shape || "Not specified"}
-Lip Thickness: ${attributes.lip_thickness || "Not specified"}
-Mouth Width: ${attributes.mouth_width || "Not specified"}
-Smile Type: ${attributes.smile_type || "Not specified"}
+Lip Shape: ${getConstraintText("lip_shape", attributes.lip_shape || "Not specified")}
+Lip Thickness: ${getConstraintText("lip_thickness", attributes.lip_thickness || "Not specified")}
+Mouth Width: ${getConstraintText("mouth_width", attributes.mouth_width || "Not specified")}
+Smile Type: ${getConstraintText("smile_type", attributes.smile_type || "Not specified")}
 
 FACIAL STRUCTURE:
-Chin Shape: ${attributes.chin_shape || "Not specified"}
+Chin Shape: ${getConstraintText("chin_shape", attributes.chin_shape || "Not specified")}
 
 FACIAL HAIR:
-Facial Hair Type: ${attributes.facial_hair_type || "Not specified"}
-Beard Color: ${attributes.beard_color || "Not specified"}
+Facial Hair Type: ${getConstraintText("facial_hair_type", attributes.facial_hair_type || "Not specified")}
+Beard Color: ${getConstraintText("beard_color", attributes.beard_color || "Not specified")}
 
 EARS:
-Ear Shape: ${attributes.ear_shape || "Not specified"}
-Ear Size: ${attributes.ear_size || "Not specified"}
-Ear Lobes: ${attributes.ear_lobes || "Not specified"}
-Helix/Antihelix: ${attributes.helix_antihelix || "Not specified"}
+Ear Shape: ${getConstraintText("ear_shape", attributes.ear_shape || "Not specified")}
+Ear Size: ${getConstraintText("ear_size", attributes.ear_size || "Not specified")}
+Ear Lobes: ${getConstraintText("ear_lobes", attributes.ear_lobes || "Not specified")}
+Helix/Antihelix: ${getConstraintText("helix_antihelix", attributes.helix_antihelix || "Not specified")}
 
 SKIN:
-Other Skin Features: ${attributes.other_skin_features || "Not specified"}
+Other Skin Features: ${getConstraintText("other_skin_features", attributes.other_skin_features || "Not specified")}
 
 ACCESSORIES:
 Accessories: ${attributes.accessories || "Not specified"}
 
-FINAL VISUAL SUMMARY (most important):
-Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adult"} approximately ${attributes.age || "adult"} years old, of ${attributes.ethnicity || "unspecified"} ethnicity, about ${attributes.height_feet || "average"} feet tall, with ${attributes.body_type || "average"} build, ${attributes.skin_tone || "natural"} skin tone, ${attributes.hair_length || "medium"} ${attributes.hair_style || "simple"} ${attributes.hair_texture || "straight"} hair, and ${attributes.eye_color || "natural-colored"} eyes. Neutral expression, no smile unless specified, plain light background, realistic forensic composite style, no text or decorative elements.`;
+FINAL VISUAL SUMMARY:
+Create a front-facing, chest-and-head portrait. Neutral expression, plain light background, realistic forensic composite style, no text or decorative elements. STRICTLY PRESERVE all features marked as [FIXED].`;
 
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!lovableApiKey) throw new Error("LOVABLE_API_KEY not configured");
