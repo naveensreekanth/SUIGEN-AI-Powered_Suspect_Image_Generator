@@ -5,20 +5,37 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, Download, AlertCircle } from "lucide-react";
+import { Loader2, Sparkles, Download, AlertCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import FeatureControl from "./FeatureControl";
 
 interface PhysicalAttributesFormProps {
   caseId: string;
 }
+
+// Facial feature keys that should have lock & confidence controls
+const FACIAL_FEATURE_KEYS = [
+  "head_shape", "chin_shape", "hair_length", "hair_texture", "hairline_shape", "hair_style",
+  "facial_hair_type", "beard_color", "eyebrow_type", "eye_shape", "eye_size_spacing",
+  "eyelid_type", "eyelashes", "eye_color", "eye_bags_wrinkles", "nose_shape", "bridge_height",
+  "nostril_width", "nose_tip_shape", "lip_thickness", "mouth_width", "lip_shape", "smile_type",
+  "ear_size", "ear_lobes", "ear_shape", "helix_antihelix", "skin_tone", "other_skin_features"
+];
+
+const ETHICAL_DISCLAIMER = "This generated face is an AI-generated image and an approximation based on user-provided descriptions and does not represent a real individual.";
 
 const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
   const [generating, setGenerating] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // Feature locks state - locked features can't vary
+  const [lockedFeatures, setLockedFeatures] = useState<Record<string, boolean>>({});
+  // Confidence levels state - 1=Low, 2=Medium, 3=High
+  const [confidenceLevels, setConfidenceLevels] = useState<Record<string, number>>({});
   
   const [formData, setFormData] = useState({
     gender: "", age: "", ethnicity: "", height_feet: "", body_type: "",
@@ -32,9 +49,19 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
     accessories: "",
   });
 
+  const handleLockToggle = (key: string) => {
+    setLockedFeatures(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleConfidenceChange = (key: string, value: number) => {
+    setConfidenceLevels(prev => ({ ...prev, [key]: value }));
+  };
+
+  const getConfidence = (key: string) => confidenceLevels[key] || 2; // Default to Medium
+  const isLocked = (key: string) => lockedFeatures[key] || false;
+
   const handleDownloadPDF = async () => {
     try {
-      // Fetch case details
       const { data: caseData, error: caseError } = await supabase
         .from("suspect_case_records")
         .select("*")
@@ -47,13 +74,11 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
       const pageWidth = pdf.internal.pageSize.getWidth();
       let yPosition = 20;
 
-      // Title
       pdf.setFontSize(20);
       pdf.setFont("helvetica", "bold");
       pdf.text("SUSPECT REPORT", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 15;
 
-      // Case Details Section
       pdf.setFontSize(14);
       pdf.setFont("helvetica", "bold");
       pdf.text("Case Details", 15, yPosition);
@@ -80,7 +105,6 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
 
       yPosition += 5;
 
-      // Physical Attributes Section
       pdf.setFontSize(14);
       pdf.setFont("helvetica", "bold");
       pdf.text("Physical Attributes", 15, yPosition);
@@ -135,7 +159,7 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
         yPosition += 6;
       });
 
-      // Add Generated Image (use selected image or first one)
+      // Add Generated Image
       if (generatedImages.length > 0) {
         pdf.addPage();
         pdf.setFontSize(14);
@@ -145,6 +169,12 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
         const imgWidth = 150;
         const imgHeight = 150;
         pdf.addImage(generatedImages[selectedImageIndex], "PNG", (pageWidth - imgWidth) / 2, 35, imgWidth, imgHeight);
+        
+        // Add ethical disclaimer at the bottom of the image page
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "italic");
+        const disclaimerLines = pdf.splitTextToSize(ETHICAL_DISCLAIMER, pageWidth - 30);
+        pdf.text(disclaimerLines, pageWidth / 2, 195, { align: "center" });
       }
 
       pdf.save(`Suspect_Report_${caseId}.pdf`);
@@ -206,6 +236,16 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
 
       if (attrError) throw attrError;
 
+      // Build feature constraints for the edge function
+      const featureConstraints: Record<string, { locked: boolean; confidence: number }> = {};
+      FACIAL_FEATURE_KEYS.forEach(key => {
+        const locked = isLocked(key);
+        featureConstraints[key] = {
+          locked,
+          confidence: locked ? 3 : getConfidence(key) // Locked = always high confidence
+        };
+      });
+
       const { data: { session } } = await supabase.auth.getSession();
       
       const response = await fetch(
@@ -216,7 +256,10 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session?.access_token}`,
           },
-          body: JSON.stringify({ case_id: caseId }),
+          body: JSON.stringify({ 
+            case_id: caseId,
+            feature_constraints: featureConstraints
+          }),
         }
       );
 
@@ -226,7 +269,6 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
         const errorMsg = error.error || "Failed to generate image";
         setErrorMessage(errorMsg);
         
-        // Handle rate limit with retry information
         if (response.status === 429 && error.retryAfter) {
           throw new Error(`${errorMsg} (wait ${error.retryAfter}s)`);
         }
@@ -240,7 +282,6 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
         setGeneratedImages(result.images);
         setSelectedImageIndex(0);
         
-        // Save the first image to the database
         await supabase.from("generated_images").insert({
           case_id: caseId,
           attributes_id: attributesRecord.id,
@@ -256,7 +297,6 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
       const errorMsg = error.message || "Failed to generate image";
       setErrorMessage(errorMsg);
       
-      // Show more user-friendly error messages with longer duration for rate limits
       if (errorMsg.includes("wait")) {
         toast.error(errorMsg, { duration: 5000 });
       } else if (errorMsg.includes("Rate limit") || errorMsg.includes("already in progress")) {
@@ -267,6 +307,32 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
     } finally {
       setGenerating(false);
     }
+  };
+
+  // Helper to render a feature field with optional lock/confidence controls
+  const renderFeatureField = (
+    key: keyof typeof formData,
+    label: string,
+    children: React.ReactNode,
+    colSpan: boolean = false
+  ) => {
+    const isFacialFeature = FACIAL_FEATURE_KEYS.includes(key);
+    
+    return (
+      <div className={`space-y-2 ${colSpan ? 'col-span-2' : ''}`}>
+        <Label>{label}</Label>
+        {children}
+        {isFacialFeature && (
+          <FeatureControl
+            featureKey={key}
+            isLocked={isLocked(key)}
+            confidence={getConfidence(key)}
+            onLockToggle={handleLockToggle}
+            onConfidenceChange={handleConfidenceChange}
+          />
+        )}
+      </div>
+    );
   };
 
   return (
@@ -310,248 +376,219 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
                 <SelectContent className="max-h-60"><SelectItem value="Slim/lean">Slim/lean</SelectItem><SelectItem value="Athletic/medium">Athletic/medium</SelectItem><SelectItem value="Muscular">Muscular</SelectItem><SelectItem value="Stocky">Stocky</SelectItem><SelectItem value="Pear/Triangle">Pear/Triangle</SelectItem><SelectItem value="Inverted Triangle">Inverted Triangle</SelectItem><SelectItem value="Rectangle/Straight">Rectangle/Straight</SelectItem><SelectItem value="Hourglass">Hourglass</SelectItem><SelectItem value="Apple/Round">Apple/Round</SelectItem></SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Head Shape</Label>
+            {renderFeatureField("head_shape", "Head Shape",
               <Select value={formData.head_shape} onValueChange={(v) => setFormData({ ...formData, head_shape: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Oval">Oval</SelectItem><SelectItem value="Round">Round</SelectItem><SelectItem value="Square">Square</SelectItem><SelectItem value="Rectangular">Rectangular</SelectItem><SelectItem value="Diamond">Diamond</SelectItem><SelectItem value="Heart">Heart</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Chin Shape</Label>
+            )}
+            {renderFeatureField("chin_shape", "Chin Shape",
               <Select value={formData.chin_shape} onValueChange={(v) => setFormData({ ...formData, chin_shape: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select chin" /></SelectTrigger>
                 <SelectContent className="max-h-60"><SelectItem value="Cleft chin">Cleft</SelectItem><SelectItem value="Double chin">Double</SelectItem><SelectItem value="Protruding chin">Protruding</SelectItem><SelectItem value="Square chin">Square</SelectItem><SelectItem value="Round chin">Round</SelectItem><SelectItem value="Pointed chin">Pointed</SelectItem></SelectContent>
               </Select>
-            </div>
+            , true)}
           </CardContent>
         </Card>
 
         <Card className="neon-border">
           <CardHeader><CardTitle>Hair</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Length</Label>
+            {renderFeatureField("hair_length", "Length",
               <Select value={formData.hair_length} onValueChange={(v) => setFormData({ ...formData, hair_length: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Bald">Bald</SelectItem><SelectItem value="Short">Short</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Long">Long</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Texture</Label>
+            )}
+            {renderFeatureField("hair_texture", "Texture",
               <Select value={formData.hair_texture} onValueChange={(v) => setFormData({ ...formData, hair_texture: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Coarse">Coarse</SelectItem><SelectItem value="Wavy">Wavy</SelectItem><SelectItem value="Straight">Straight</SelectItem><SelectItem value="Rough">Rough</SelectItem><SelectItem value="Curly">Curly</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Hairline</Label>
+            )}
+            {renderFeatureField("hairline_shape", "Hairline",
               <Select value={formData.hairline_shape} onValueChange={(v) => setFormData({ ...formData, hairline_shape: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Receding">Receding</SelectItem><SelectItem value="Straight">Straight</SelectItem><SelectItem value="Widow's peak">Widow's peak</SelectItem><SelectItem value="M-shaped">M-shaped</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Style</Label>
+            , true)}
+            {renderFeatureField("hair_style", "Style",
               <Input placeholder="Describe" value={formData.hair_style} onChange={(e) => setFormData({ ...formData, hair_style: e.target.value })} className="bg-secondary/50" />
-            </div>
+            , true)}
           </CardContent>
         </Card>
 
         <Card className="neon-border">
           <CardHeader><CardTitle>Facial Hair</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-2">
-              <Label>Type</Label>
+            {renderFeatureField("facial_hair_type", "Type",
               <Select value={formData.facial_hair_type} onValueChange={(v) => setFormData({ ...formData, facial_hair_type: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent className="max-h-60"><SelectItem value="None">None</SelectItem><SelectItem value="Full beard">Full beard</SelectItem><SelectItem value="Goatee">Goatee</SelectItem><SelectItem value="Mustache">Mustache</SelectItem><SelectItem value="Sideburns">Sideburns</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Color</Label>
+            , true)}
+            {renderFeatureField("beard_color", "Color",
               <Select value={formData.beard_color} onValueChange={(v) => setFormData({ ...formData, beard_color: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Black">Black</SelectItem><SelectItem value="Dark brown">Dark brown</SelectItem><SelectItem value="Light brown">Light brown</SelectItem><SelectItem value="Gray">Gray</SelectItem><SelectItem value="White">White</SelectItem></SelectContent>
               </Select>
-            </div>
+            , true)}
           </CardContent>
         </Card>
 
         <Card className="neon-border">
           <CardHeader><CardTitle>Eyes</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Eyebrow Type</Label>
+            {renderFeatureField("eyebrow_type", "Eyebrow Type",
               <Select value={formData.eyebrow_type} onValueChange={(v) => setFormData({ ...formData, eyebrow_type: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Straight">Straight</SelectItem><SelectItem value="Arched">Arched</SelectItem><SelectItem value="Thick">Thick</SelectItem><SelectItem value="Thin">Thin</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Eye Shape</Label>
+            )}
+            {renderFeatureField("eye_shape", "Eye Shape",
               <Select value={formData.eye_shape} onValueChange={(v) => setFormData({ ...formData, eye_shape: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Almond">Almond</SelectItem><SelectItem value="Round">Round</SelectItem><SelectItem value="Hooded">Hooded</SelectItem><SelectItem value="Deep-set">Deep-set</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Eye Color</Label>
+            )}
+            {renderFeatureField("eye_color", "Eye Color",
               <Select value={formData.eye_color} onValueChange={(v) => setFormData({ ...formData, eye_color: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Brown">Brown</SelectItem><SelectItem value="Blue">Blue</SelectItem><SelectItem value="Green">Green</SelectItem><SelectItem value="Hazel">Hazel</SelectItem><SelectItem value="Gray">Gray</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Eye Size & Spacing</Label>
+            )}
+            {renderFeatureField("eye_size_spacing", "Eye Size & Spacing",
               <Select value={formData.eye_size_spacing} onValueChange={(v) => setFormData({ ...formData, eye_size_spacing: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Large">Large</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Small">Small</SelectItem><SelectItem value="Wide-set">Wide-set</SelectItem><SelectItem value="Close-set">Close-set</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Eyelid Type</Label>
+            )}
+            {renderFeatureField("eyelid_type", "Eyelid Type",
               <Select value={formData.eyelid_type} onValueChange={(v) => setFormData({ ...formData, eyelid_type: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Double eyelid">Double eyelid</SelectItem><SelectItem value="Single/monolid">Single/monolid</SelectItem><SelectItem value="Hooded">Hooded</SelectItem><SelectItem value="Crinkled crease">Crinkled crease</SelectItem><SelectItem value="Deep-set crease">Deep-set crease</SelectItem><SelectItem value="Visible crease">Visible crease</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Eyelashes</Label>
+            )}
+            {renderFeatureField("eyelashes", "Eyelashes",
               <Select value={formData.eyelashes} onValueChange={(v) => setFormData({ ...formData, eyelashes: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Short">Short</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Long">Long</SelectItem><SelectItem value="Sparse">Sparse</SelectItem><SelectItem value="Dense">Dense</SelectItem><SelectItem value="Straight">Straight</SelectItem><SelectItem value="Curled">Curled</SelectItem><SelectItem value="Full line">Full line</SelectItem><SelectItem value="Lower prominent">Lower prominent</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Eye Bags & Wrinkles</Label>
+            )}
+            {renderFeatureField("eye_bags_wrinkles", "Eye Bags & Wrinkles",
               <Select value={formData.eye_bags_wrinkles} onValueChange={(v) => setFormData({ ...formData, eye_bags_wrinkles: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="None">None</SelectItem><SelectItem value="Slightly puffy">Slightly puffy</SelectItem><SelectItem value="Heavy wrinkles">Heavy wrinkles</SelectItem></SelectContent>
               </Select>
-            </div>
+            , true)}
           </CardContent>
         </Card>
 
         <Card className="neon-border">
           <CardHeader><CardTitle>Nose</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Nose Shape</Label>
+            {renderFeatureField("nose_shape", "Nose Shape",
               <Select value={formData.nose_shape} onValueChange={(v) => setFormData({ ...formData, nose_shape: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Greek">Greek</SelectItem><SelectItem value="Roman">Roman</SelectItem><SelectItem value="Nubian">Nubian</SelectItem><SelectItem value="Hawk">Hawk</SelectItem><SelectItem value="Upturned">Upturned</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Bridge Height</Label>
+            )}
+            {renderFeatureField("bridge_height", "Bridge Height",
               <Select value={formData.bridge_height} onValueChange={(v) => setFormData({ ...formData, bridge_height: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="High">High</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Low">Low</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Nostril Width</Label>
+            )}
+            {renderFeatureField("nostril_width", "Nostril Width",
               <Select value={formData.nostril_width} onValueChange={(v) => setFormData({ ...formData, nostril_width: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Narrow">Narrow</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Wide">Wide</SelectItem><SelectItem value="Flared">Flared</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Nose Tip Shape</Label>
+            )}
+            {renderFeatureField("nose_tip_shape", "Nose Tip Shape",
               <Select value={formData.nose_tip_shape} onValueChange={(v) => setFormData({ ...formData, nose_tip_shape: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Rounded">Rounded</SelectItem><SelectItem value="Aquiline">Aquiline</SelectItem><SelectItem value="Pointed">Pointed</SelectItem><SelectItem value="Bulbous">Bulbous</SelectItem><SelectItem value="Drooping">Drooping</SelectItem><SelectItem value="Upturned">Upturned</SelectItem><SelectItem value="Wide">Wide</SelectItem><SelectItem value="Narrow">Narrow</SelectItem></SelectContent>
               </Select>
-            </div>
+            )}
           </CardContent>
         </Card>
 
         <Card className="neon-border">
           <CardHeader><CardTitle>Mouth</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Lip Thickness</Label>
+            {renderFeatureField("lip_thickness", "Lip Thickness",
               <Select value={formData.lip_thickness} onValueChange={(v) => setFormData({ ...formData, lip_thickness: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Thin">Thin</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Full">Full</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Mouth Width</Label>
+            )}
+            {renderFeatureField("mouth_width", "Mouth Width",
               <Select value={formData.mouth_width} onValueChange={(v) => setFormData({ ...formData, mouth_width: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Narrow">Narrow</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Wide">Wide</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Lip Shape</Label>
+            )}
+            {renderFeatureField("lip_shape", "Lip Shape",
               <Select value={formData.lip_shape} onValueChange={(v) => setFormData({ ...formData, lip_shape: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent className="max-h-60"><SelectItem value="Straight">Straight</SelectItem><SelectItem value="Curved">Curved</SelectItem><SelectItem value="High Cupid's bow">High Cupid's bow</SelectItem><SelectItem value="Low Cupid's bow">Low Cupid's bow</SelectItem><SelectItem value="Angular corners">Angular corners</SelectItem><SelectItem value="Rounded corners">Rounded corners</SelectItem><SelectItem value="Chiseled">Chiseled</SelectItem><SelectItem value="Bowless">Bowless</SelectItem><SelectItem value="Even thickness">Even thickness</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Smile Type</Label>
+            )}
+            {renderFeatureField("smile_type", "Smile Type",
               <Select value={formData.smile_type} onValueChange={(v) => setFormData({ ...formData, smile_type: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Neutral">Neutral</SelectItem><SelectItem value="Frown">Frown</SelectItem><SelectItem value="Upward curve">Upward curve</SelectItem></SelectContent>
               </Select>
-            </div>
+            )}
           </CardContent>
         </Card>
 
         <Card className="neon-border">
           <CardHeader><CardTitle>Ears</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Ear Size</Label>
+            {renderFeatureField("ear_size", "Ear Size",
               <Select value={formData.ear_size} onValueChange={(v) => setFormData({ ...formData, ear_size: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Small">Small</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Large">Large</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Ear Lobes</Label>
+            )}
+            {renderFeatureField("ear_lobes", "Ear Lobes",
               <Select value={formData.ear_lobes} onValueChange={(v) => setFormData({ ...formData, ear_lobes: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Attached">Attached</SelectItem><SelectItem value="Free">Free</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Ear Shape</Label>
+            )}
+            {renderFeatureField("ear_shape", "Ear Shape",
               <Select value={formData.ear_shape} onValueChange={(v) => setFormData({ ...formData, ear_shape: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Round">Round</SelectItem><SelectItem value="Oval">Oval</SelectItem><SelectItem value="Heart-shaped">Heart-shaped</SelectItem><SelectItem value="Pointed">Pointed</SelectItem><SelectItem value="Flared">Flared</SelectItem><SelectItem value="Regular">Regular</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Helix/Antihelix Features</Label>
+            )}
+            {renderFeatureField("helix_antihelix", "Helix/Antihelix Features",
               <Select value={formData.helix_antihelix} onValueChange={(v) => setFormData({ ...formData, helix_antihelix: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Defined helix">Defined helix</SelectItem><SelectItem value="Soft helix">Soft helix</SelectItem><SelectItem value="Prominent antihelix">Prominent antihelix</SelectItem><SelectItem value="Flat concha">Flat concha</SelectItem></SelectContent>
               </Select>
-            </div>
+            )}
           </CardContent>
         </Card>
 
         <Card className="neon-border">
           <CardHeader><CardTitle>Skin & Accessories</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-2">
-              <Label>Skin Tone</Label>
+            {renderFeatureField("skin_tone", "Skin Tone",
               <Select value={formData.skin_tone} onValueChange={(v) => setFormData({ ...formData, skin_tone: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Fair">Fair</SelectItem><SelectItem value="Light">Light</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Olive">Olive</SelectItem><SelectItem value="Tan">Tan</SelectItem><SelectItem value="Deep">Deep</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Other Skin Features</Label>
+            , true)}
+            {renderFeatureField("other_skin_features", "Other Skin Features",
               <Select value={formData.other_skin_features} onValueChange={(v) => setFormData({ ...formData, other_skin_features: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="Scars">Scars</SelectItem><SelectItem value="Blemishes">Blemishes</SelectItem><SelectItem value="Wrinkles">Wrinkles</SelectItem><SelectItem value="Freckles">Freckles</SelectItem><SelectItem value="Birthmarks">Birthmarks</SelectItem><SelectItem value="Moles">Moles</SelectItem></SelectContent>
               </Select>
-            </div>
+            , true)}
             <div className="col-span-2 space-y-2">
               <Label>Accessories</Label>
               <Input placeholder="Glasses, Hats, etc." value={formData.accessories} onChange={(e) => setFormData({ ...formData, accessories: e.target.value })} className="bg-secondary/50" />
@@ -602,6 +639,14 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
                     </button>
                   ))}
                 </div>
+
+                {/* Ethical Disclaimer */}
+                <Alert className="bg-amber-500/10 border-amber-500/30">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  <AlertDescription className="text-xs text-muted-foreground">
+                    {ETHICAL_DISCLAIMER}
+                  </AlertDescription>
+                </Alert>
                 
                 <div className="grid grid-cols-2 gap-2">
                   <Button onClick={handleGenerate} disabled={generating} variant="outline" className="w-full">
