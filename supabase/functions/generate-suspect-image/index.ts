@@ -90,7 +90,7 @@ serve(async (req) => {
 
     if (attrError) throw attrError;
 
-    const prompt = `Realistic digital forensic composite portrait of a single human suspect.
+    const basePrompt = `Realistic digital forensic composite portrait of a single human suspect.
 
 ROLE:
 You are a digital forensic sketch generator. Based on structured physical descriptions, you must produce a realistic police-style digital sketch of a suspect.
@@ -172,69 +172,69 @@ Accessories: ${attributes.accessories || "Not specified"}
 FINAL VISUAL SUMMARY (most important):
 Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adult"} approximately ${attributes.age || "adult"} years old, of ${attributes.ethnicity || "unspecified"} ethnicity, about ${attributes.height_feet || "average"} feet tall, with ${attributes.body_type || "average"} build, ${attributes.skin_tone || "natural"} skin tone, ${attributes.hair_length || "medium"} ${attributes.hair_style || "simple"} ${attributes.hair_texture || "straight"} hair, and ${attributes.eye_color || "natural-colored"} eyes. Neutral expression, no smile unless specified, plain light background, realistic forensic composite style, no text or decorative elements.`;
 
-    const vertexApiKey = Deno.env.get("VERTEX_AI_API_KEY");
-    if (!vertexApiKey) throw new Error("VERTEX_AI_API_KEY not configured");
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableApiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-    const projectId = "778958316532";
-    const region = "asia-south1";
-    
-    const aiResponse = await fetch(
-      `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/imagegeneration@006:predict`,
-      {
+    // Generate 4 different variations
+    const variations = [
+      "Generate this portrait with slightly different lighting angles.",
+      "Generate this portrait with a subtle variation in expression.",
+      "Generate this portrait from a very slightly different angle.",
+      "Generate this portrait with alternative interpretation of facial features."
+    ];
+
+    const imagePromises = variations.map(async (variation, index) => {
+      const prompt = `${basePrompt}\n\nVariation ${index + 1}: ${variation}`;
+      
+      console.log(`Generating image ${index + 1}/4...`);
+      
+      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        headers: { 
+        headers: {
+          "Authorization": `Bearer ${lovableApiKey}`,
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${vertexApiKey}`
         },
         body: JSON.stringify({
-          instances: [
+          model: "google/gemini-2.5-flash-image-preview",
+          messages: [
             {
-              prompt: prompt
+              role: "user",
+              content: prompt
             }
           ],
-          parameters: {
-            sampleCount: 1,
-            aspectRatio: "1:1",
-            safetyFilterLevel: "block_few",
-            personGeneration: "allow_adult"
-          }
+          modalities: ["image", "text"]
         }),
-      }
-    );
+      });
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error(`Vertex AI Error (${aiResponse.status}):`, errorText);
+      if (!aiResponse.ok) {
+        const errorText = await aiResponse.text();
+        console.error(`Lovable AI Error for image ${index + 1} (${aiResponse.status}):`, errorText);
+        
+        if (aiResponse.status === 429) {
+          throw new Error("Rate limits exceeded, please try again later.");
+        }
+        if (aiResponse.status === 402) {
+          throw new Error("Payment required, please add funds to your Lovable AI workspace.");
+        }
+        
+        throw new Error(`AI gateway error: ${aiResponse.status}`);
+      }
+
+      const aiResult = await aiResponse.json();
+      console.log(`Image ${index + 1} response received`);
       
-      if (aiResponse.status === 401 || aiResponse.status === 403) {
-        const message = "Vertex AI authentication failed. Please check your API key.";
-        return new Response(
-          JSON.stringify({ error: message }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
+      const imageUrl = aiResult.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+      if (!imageUrl) {
+        console.error(`No image data found for image ${index + 1}. Full response:`, JSON.stringify(aiResult, null, 2));
+        throw new Error(`No image data in response for variation ${index + 1}`);
       }
 
-      if (aiResponse.status === 429) {
-        const message = "Rate limit exceeded. Please wait a moment and try again.";
-        return new Response(
-          JSON.stringify({ error: message }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
-      
-      throw new Error(`Vertex AI error: ${aiResponse.status} - ${errorText}`);
-    }
+      return imageUrl;
+    });
 
-    const aiResult = await aiResponse.json();
-    console.log("Vertex AI Response:", JSON.stringify(aiResult, null, 2));
-    
-    const imageData = aiResult.predictions?.[0]?.bytesBase64Encoded;
-    if (!imageData) {
-      console.error("No image data found. Full response:", JSON.stringify(aiResult, null, 2));
-      throw new Error(`No image data in Vertex AI response. Response structure: ${JSON.stringify(aiResult)}`);
-    }
-
-    const imageDataUrl = `data:image/png;base64,${imageData}`;
+    // Wait for all 4 images to generate
+    const images = await Promise.all(imagePromises);
+    console.log(`Successfully generated ${images.length} images`);
 
     // Update queue entry as completed
     await supabaseClient
@@ -245,7 +245,10 @@ Create a front-facing, chest-and-head portrait of a ${attributes.gender || "adul
       })
       .eq("id", queueEntry.id);
 
-    return new Response(JSON.stringify({ imageData: imageDataUrl }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(
+      JSON.stringify({ images }), 
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (error: any) {
     console.error("Error in generate-suspect-image:", error);
     

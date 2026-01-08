@@ -16,7 +16,8 @@ interface PhysicalAttributesFormProps {
 
 const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
   const [generating, setGenerating] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
@@ -134,8 +135,8 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
         yPosition += 6;
       });
 
-      // Add Generated Image
-      if (generatedImage) {
+      // Add Generated Image (use selected image or first one)
+      if (generatedImages.length > 0) {
         pdf.addPage();
         pdf.setFontSize(14);
         pdf.setFont("helvetica", "bold");
@@ -143,7 +144,7 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
         
         const imgWidth = 150;
         const imgHeight = 150;
-        pdf.addImage(generatedImage, "PNG", (pageWidth - imgWidth) / 2, 35, imgWidth, imgHeight);
+        pdf.addImage(generatedImages[selectedImageIndex], "PNG", (pageWidth - imgWidth) / 2, 35, imgWidth, imgHeight);
       }
 
       pdf.save(`Suspect_Report_${caseId}.pdf`);
@@ -235,18 +236,20 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
 
       const result = await response.json();
       
-      if (result.imageData) {
-        setGeneratedImage(result.imageData);
+      if (result.images && result.images.length > 0) {
+        setGeneratedImages(result.images);
+        setSelectedImageIndex(0);
         
+        // Save the first image to the database
         await supabase.from("generated_images").insert({
           case_id: caseId,
           attributes_id: attributesRecord.id,
-          image_data: result.imageData,
+          image_data: result.images[0],
           generation_status: "completed",
-          generation_metadata: { model: "gemini-2.5-flash-image" },
+          generation_metadata: { model: "gemini-2.5-flash-image-preview", totalImages: result.images.length },
         });
 
-        toast.success("Suspect image generated successfully!");
+        toast.success(`${result.images.length} suspect images generated successfully!`);
       }
     } catch (error: any) {
       console.error("Generation error:", error);
@@ -304,7 +307,7 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
               <Label>Body Type</Label>
               <Select value={formData.body_type} onValueChange={(v) => setFormData({ ...formData, body_type: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent><SelectItem value="Slim/lean">Slim/lean</SelectItem><SelectItem value="Athletic/medium">Athletic/medium</SelectItem><SelectItem value="Muscular">Muscular</SelectItem><SelectItem value="Stocky">Stocky</SelectItem></SelectContent>
+                <SelectContent className="max-h-60"><SelectItem value="Slim/lean">Slim/lean</SelectItem><SelectItem value="Athletic/medium">Athletic/medium</SelectItem><SelectItem value="Muscular">Muscular</SelectItem><SelectItem value="Stocky">Stocky</SelectItem><SelectItem value="Pear/Triangle">Pear/Triangle</SelectItem><SelectItem value="Inverted Triangle">Inverted Triangle</SelectItem><SelectItem value="Rectangle/Straight">Rectangle/Straight</SelectItem><SelectItem value="Hourglass">Hourglass</SelectItem><SelectItem value="Apple/Round">Apple/Round</SelectItem></SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
@@ -338,7 +341,7 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
               <Label>Texture</Label>
               <Select value={formData.hair_texture} onValueChange={(v) => setFormData({ ...formData, hair_texture: v })}>
                 <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent><SelectItem value="Coarse">Coarse</SelectItem><SelectItem value="Wavy">Wavy</SelectItem><SelectItem value="Straight">Straight</SelectItem><SelectItem value="Rough">Rough</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="Coarse">Coarse</SelectItem><SelectItem value="Wavy">Wavy</SelectItem><SelectItem value="Straight">Straight</SelectItem><SelectItem value="Rough">Rough</SelectItem><SelectItem value="Curly">Curly</SelectItem></SelectContent>
               </Select>
             </div>
             <div className="col-span-2 space-y-2">
@@ -576,11 +579,30 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
         <Card className="neon-border sticky top-4">
           <CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5" />Generated Portrait</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            {generatedImage ? (
+            {generatedImages.length > 0 ? (
               <div className="space-y-4">
+                {/* Main selected image */}
                 <div className="aspect-square bg-secondary/20 rounded-lg overflow-hidden">
-                  <img src={generatedImage} alt="Generated portrait" className="w-full h-full object-cover" />
+                  <img src={generatedImages[selectedImageIndex]} alt={`Generated portrait ${selectedImageIndex + 1}`} className="w-full h-full object-cover" />
                 </div>
+                
+                {/* Thumbnail grid for 4 images */}
+                <div className="grid grid-cols-4 gap-2">
+                  {generatedImages.map((img, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedImageIndex(index)}
+                      className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                        selectedImageIndex === index 
+                          ? 'border-primary ring-2 ring-primary/50' 
+                          : 'border-transparent hover:border-primary/50'
+                      }`}
+                    >
+                      <img src={img} alt={`Variation ${index + 1}`} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+                
                 <div className="grid grid-cols-2 gap-2">
                   <Button onClick={handleGenerate} disabled={generating} variant="outline" className="w-full">
                     {generating ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Regenerating...</>) : (<><Sparkles className="mr-2 h-4 w-4" />Regenerate</>)}
@@ -597,7 +619,7 @@ const PhysicalAttributesForm = ({ caseId }: PhysicalAttributesFormProps) => {
                   <p className="text-muted-foreground text-center px-4">Fill attributes & click Generate</p>
                 </div>
                 <Button onClick={handleGenerate} disabled={generating} className="w-full">
-                  {generating ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating...</>) : (<><Sparkles className="mr-2 h-4 w-4" />Generate Image</>)}
+                  {generating ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating 4 images...</>) : (<><Sparkles className="mr-2 h-4 w-4" />Generate Images</>)}
                 </Button>
               </div>
             )}
