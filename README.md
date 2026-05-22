@@ -1,73 +1,30 @@
-# Welcome to your Lovable project
+# SUIGEN 🕵️‍♂️
+**Suspect Image Generator**
 
-## Project info
+🏆 *3rd Prize Winner at AROHAN 2.0 Student Project Exhibition*
 
-**URL**: https://lovable.dev/projects/779dab6d-97a3-47c4-ae1b-ba45bdafa3eb
+## 📖 Overview
+SUIGEN is an advanced, multimodal Generative AI pipeline designed to synthesize and reconstruct photorealistic facial images from structured linguistic inputs and witness descriptions. By leveraging diffusion-based text-to-image models, this tool bridges the gap between raw witness accounts and highly accurate visual representations.
 
-## How can I edit this code?
+## ✨ Core Features & Architecture
+* **Multimodal Facial Reconstruction:** Reconstructs photorealistic facial images from structured witness descriptions using state-of-the-art generative models.
+* **Dynamic Prompt Engineering:** Utilizes advanced prompt templates and facial attribute mapping logic to translate raw text into optimized generative inputs.
+* **Iterative Refinement Workflow:** Integrates Stable Diffusion APIs and the Diffusers library for continuous image refinement, significantly improving facial synthesis accuracy.
+* **Modular Pipeline Design:** Built with a scalable architecture featuring dedicated layers for NLP descriptor preprocessing, core image generation, and automated output enhancement.
 
-There are several ways of editing your application.
+## 🛠️ Tech Stack
+* **Language:** Python
+* **Generative AI:** Stable Diffusion, Diffusers
+* **Concepts:** Prompt Engineering, Multimodal AI, Natural Language Processing (NLP)
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/779dab6d-97a3-47c4-ae1b-ba45bdafa3eb) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/779dab6d-97a3-47c4-ae1b-ba45bdafa3eb) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## 📁 Repository Structure
+```text
+suigen/
+├── data/                       # Structured witness descriptions and prompt templates
+├── modules/
+│   ├── preprocessing.py        # NLP descriptor preprocessing and attribute mapping
+│   ├── generation.py           # Core Stable Diffusion / Diffusers pipeline
+│   └── enhancement.py          # Output post-processing and refinement
+├── suigen.py                   # Main executable script
+├── requirements.txt            # Python dependencies
+└── README.md                   # Project documentation
